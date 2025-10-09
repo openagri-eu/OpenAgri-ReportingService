@@ -118,6 +118,15 @@ def create_pdf_from_operations(
         pdf.cell(
             40,
             8,
+            "Contact Person:",
+        )
+        pdf.set_font("FreeSerif", "", 10)
+        pdf.multi_cell(0, 8, farm.contactPerson, ln=True, fill=True)
+
+        pdf.set_font("FreeSerif", "B", 10)
+        pdf.cell(
+            40,
+            8,
             "Farm vat:",
         )
         pdf.set_font("FreeSerif", "", 10)
@@ -181,6 +190,15 @@ def create_pdf_from_operations(
         )
         pdf.set_font("FreeSerif", "", 10)
         pdf.multi_cell(0, 8, farm.administrator, ln=True, fill=True)
+
+        pdf.set_font("FreeSerif", "B", 10)
+        pdf.cell(
+            40,
+            8,
+            "Contact Person:",
+        )
+        pdf.set_font("FreeSerif", "", 10)
+        pdf.multi_cell(0, 8, farm.contactPerson, ln=True, fill=True)
 
         pdf.set_font("FreeSerif", "B", 10)
         pdf.cell(

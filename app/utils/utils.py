@@ -73,6 +73,7 @@ class FarmInfo(BaseModel):
     vatID: str
     name: str
     municipality: str
+    contactPerson: str
 
 
 def get_parcel_info(
@@ -80,7 +81,7 @@ def get_parcel_info(
 ):
     address = ""
     farm = FarmInfo(
-        description="", administrator="", vatID="", name="", municipality=""
+        description="", administrator="", vatID="", name="", municipality="", contactPerson=""
     )
     identifier = ""
     if not settings.REPORTING_USING_GATEKEEPER:
@@ -121,12 +122,14 @@ def get_parcel_info(
             params={"format": "json"},
         )
 
+        contact = farm_info.get("contactPerson", {})
         farm = FarmInfo(
             description=farm_info.get("description", ""),
             administrator=farm_info.get("administrator", ""),
             vatID=farm_info.get("vatID", ""),
             name=farm_info.get("name", ""),
             municipality=farm_info.get("address", {}).get("municipality", ""),
+            contactPerson=f"{contact.get('firstname','')} {contact.get('lastname','')}"
         )
 
     if identifier_flag:
