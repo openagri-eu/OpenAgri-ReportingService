@@ -44,7 +44,7 @@ def retrieve_generated_pdf(
 
     if not os.path.exists(file_path):
         raise HTTPException(
-            status_code=404,
+            status_code=202,
             detail=f"PDF uuid {report_id} is being generated. Please be patient and try again in couple of seconds.",
         )
 
