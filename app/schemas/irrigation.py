@@ -26,3 +26,8 @@ class IrrigationOperation(BaseModel):
     hasAppliedAmount: QuantityValue
     usesIrrigationSystem: Optional[Union[str, dict]] = None
     operatedOn: Optional[dict] = None
+
+
+class FertilizationOperation(BaseModel):
+    hasApplicationMethod: Optional[str] = None
+    usesFertilizer: Optional[str] = None

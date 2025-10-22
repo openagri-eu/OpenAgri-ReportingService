@@ -15,14 +15,17 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def parse_irrigation_operations(data: dict) -> Optional[List[IrrigationOperation]]:
+def parse_irrigation_operations(data: dict, irrigation_flag: bool = True) -> Optional[List[IrrigationOperation | FertilizationOperation]]:
     """
-    Parse list of irrigation operations from JSON data
+    Parse list of irrigation or fertilization operations from JSON data
     """
     try:
-        return [IrrigationOperation.model_validate(item) for item in data]
+        if irrigation_flag:
+            return [IrrigationOperation.model_validate(item) for item in data]
+        else:
+            return [FertilizationOperation.model_validate(item) for item in data]
     except Exception as e:
-        logger.error(f"Error parsing irrigation operations: {e}")
+        logger.error(f"Error parsing irrigation/fertilization operations: {e}")
         raise HTTPException(
             status_code=400,
             detail=f"Reporting service failed during PDF generation. File is not correct JSON. {e}",
@@ -30,10 +33,11 @@ def parse_irrigation_operations(data: dict) -> Optional[List[IrrigationOperation
 
 
 def create_pdf_from_operations(
-    operations: List[IrrigationOperation], token: dict[str, str] = None,
+    operations: List[IrrigationOperation] | List[FertilizationOperation], token: dict[str, str] = None,
     data_used: bool = False, parcel_id: str = None,
     from_date: datetime.date = None,
     to_date: datetime.date = None,
+    irrigation_flag: bool = True
 ):
     """
     Create PDF report from irrigation operations
@@ -246,7 +250,11 @@ def create_pdf_from_operations(
                 row.cell("Farm")
             row.cell("Dose")
             row.cell("Unit")
-            row.cell("Irrigation System")
+            if irrigation_flag:
+                row.cell("Irrigation System")
+            else:
+                row.cell("Fertilizer")
+                row.cell("Application Method")
             pdf.set_font("FreeSerif", "", 9)
             pdf.set_fill_color(255, 255, 240)
             for op in operations:
@@ -285,32 +293,38 @@ def create_pdf_from_operations(
                     f"{op.hasAppliedAmount.unit}",
                 )
 
-                if isinstance(op.usesIrrigationSystem, dict):
-                    local_sys = op.usesIrrigationSystem.get("name")
+                if irrigation_flag:
+                    if isinstance(op.usesIrrigationSystem, dict):
+                        local_sys = op.usesIrrigationSystem.get("name")
+                    else:
+                        local_sys = op.usesIrrigationSystem
+                    row.cell(local_sys)
                 else:
-                    local_sys = op.usesIrrigationSystem
-                row.cell(local_sys)
+                    row.cell(op.usesFertilizer)
+                    row.cell(op.hasApplicationMethod)
                 pdf.ln(2)
 
     return pdf
 
 
-def process_irrigation_data(
+def process_irrigation_fertilization_data(
     data,
     token: dict[str, str],
     pdf_file_name: str,
     from_date: datetime.date = None,
     to_date: datetime.date = None,
-    irrigation_id: str = None,
+    operation_id: str = None,
     parcel_id: str = None,
+    irrigation_flag: bool = True
 ) -> None:
     """
     Process irrigation data and generate PDF report
     """
     data_used = False
-    if irrigation_id:
+    url_use = 'irrigations' if irrigation_flag else 'fertilization'
+    if operation_id:
         json_data = make_get_request(
-            url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS["irrigations"]}{irrigation_id}/',
+            url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS[url_use]}{operation_id}/',
             token=token,
             params={"format": "json"},
         )
@@ -325,7 +339,7 @@ def process_irrigation_data(
 
             decode_dates_filters(params, from_date, to_date)
             json_data = make_get_request(
-                url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS["irrigations"]}',
+                url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS[url_use]}',
                 token=token,
                 params=params,
             )
@@ -337,13 +351,13 @@ def process_irrigation_data(
                 json_data = json_data['@graph']
 
     if json_data:
-        operations = parse_irrigation_operations(json_data)
+        operations = parse_irrigation_operations(json_data, irrigation_flag=irrigation_flag)
     else:
         operations = []
 
     try:
         pdf = create_pdf_from_operations(operations, token, data_used, parcel_id=parcel_id, from_date=from_date,
-    to_date=to_date)
+    to_date=to_date, irrigation_flag=irrigation_flag)
     except Exception:
         raise HTTPException(
             status_code=400, detail="PDF generation of irrigation report failed."
@@ -351,3 +365,4 @@ def process_irrigation_data(
     pdf_dir = f"{settings.PDF_DIRECTORY}{pdf_file_name}"
     os.makedirs(os.path.dirname(f"{pdf_dir}.pdf"), exist_ok=True)
     pdf.output(f"{pdf_dir}.pdf")
+
