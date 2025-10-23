@@ -15,15 +15,19 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def parse_irrigation_operations(data: dict, irrigation_flag: bool = True) -> Optional[List[IrrigationOperation | FertilizationOperation]]:
+def parse_irrigation_operations(data: dict, irrigation_flag: bool = True,
+    fertilization_flag: bool = False,
+) -> Optional[List[IrrigationOperation | FertilizationOperation | CropProtectionOperation]]:
     """
     Parse list of irrigation or fertilization operations from JSON data
     """
     try:
         if irrigation_flag:
             return [IrrigationOperation.model_validate(item) for item in data]
-        else:
+        elif fertilization_flag:
             return [FertilizationOperation.model_validate(item) for item in data]
+        else:
+            return [CropProtectionOperation.model_validate(item) for item in data]
     except Exception as e:
         logger.error(f"Error parsing irrigation/fertilization operations: {e}")
         raise HTTPException(
@@ -33,11 +37,12 @@ def parse_irrigation_operations(data: dict, irrigation_flag: bool = True) -> Opt
 
 
 def create_pdf_from_operations(
-    operations: List[IrrigationOperation] | List[FertilizationOperation], token: dict[str, str] = None,
+    operations: List[IrrigationOperation] | List[FertilizationOperation | CropProtectionOperation], token: dict[str, str] = None,
     data_used: bool = False, parcel_id: str = None,
     from_date: datetime.date = None,
     to_date: datetime.date = None,
-    irrigation_flag: bool = True
+    irrigation_flag: bool = True,
+    fertilization_flag: bool = False,
 ):
     """
     Create PDF report from irrigation operations
@@ -252,9 +257,11 @@ def create_pdf_from_operations(
             row.cell("Unit")
             if irrigation_flag:
                 row.cell("Irrigation System")
-            else:
+            elif fertilization_flag:
                 row.cell("Fertilizer")
                 row.cell("Application Method")
+            else:
+                row.cell("Pesticide")
             pdf.set_font("FreeSerif", "", 9)
             pdf.set_fill_color(255, 255, 240)
             for op in operations:
@@ -299,9 +306,11 @@ def create_pdf_from_operations(
                     else:
                         local_sys = op.usesIrrigationSystem
                     row.cell(local_sys)
-                else:
+                elif fertilization_flag:
                     row.cell(op.usesFertilizer)
                     row.cell(op.hasApplicationMethod)
+                else:
+                    row.cell(op.usesPesticide)
                 pdf.ln(2)
 
     return pdf
@@ -315,13 +324,21 @@ def process_irrigation_fertilization_data(
     to_date: datetime.date = None,
     operation_id: str = None,
     parcel_id: str = None,
-    irrigation_flag: bool = True
+    irrigation_flag: bool = True,
+    fertilization_flag: bool = False,
+    pesticides_flag: bool = False
 ) -> None:
     """
     Process irrigation data and generate PDF report
     """
     data_used = False
-    url_use = 'irrigations' if irrigation_flag else 'fertilization'
+    url_use = 'irrigations'
+
+    if fertilization_flag:
+        url_use = 'fertilization'
+    elif pesticides_flag:
+        url_use = 'pesticides'
+
     if operation_id:
         json_data = make_get_request(
             url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS[url_use]}{operation_id}/',
@@ -351,13 +368,14 @@ def process_irrigation_fertilization_data(
                 json_data = json_data['@graph']
 
     if json_data:
-        operations = parse_irrigation_operations(json_data, irrigation_flag=irrigation_flag)
+        operations = parse_irrigation_operations(json_data, irrigation_flag=irrigation_flag,
+                                                 fertilization_flag=fertilization_flag)
     else:
         operations = []
 
     try:
         pdf = create_pdf_from_operations(operations, token, data_used, parcel_id=parcel_id, from_date=from_date,
-    to_date=to_date, irrigation_flag=irrigation_flag)
+    to_date=to_date, irrigation_flag=irrigation_flag,  fertilization_flag=fertilization_flag)
     except Exception:
         raise HTTPException(
             status_code=400, detail="PDF generation of irrigation report failed."

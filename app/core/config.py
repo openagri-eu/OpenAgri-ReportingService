@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     REPORTING_FARMCALENDAR_URLS: dict = {
         "irrigations": "/IrrigationOperations/",
         "fertilization": "/FertilizationOperations/",
+        "pesticides": "/CropProtectionOperations/",
         "activity_types": "/FarmCalendarActivityTypes/",
         "observations": "/Observations/",
         "operations": "/CompostOperations/",
