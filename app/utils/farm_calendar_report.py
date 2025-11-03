@@ -110,6 +110,7 @@ def create_farm_calendar_pdf(
             address, farm = get_parcel_info(
                 parcel_id.split(":")[-1], token, geolocator
             )
+            address = address.address
 
         pdf.set_font("FreeSerif", "B", 10)
         pdf.cell(40, 8, "Parcel Location:")
@@ -251,6 +252,8 @@ def create_farm_calendar_pdf(
                             .split(":")[-1]
                         )
                         address, farm = get_parcel_info(parcel_id, token, geolocator)
+                        address = address.address
+
                 row.cell(f"{machinery_ids}")
                 row.cell(address)
                 farm_local = f"Name: {farm.name} | Municipality: {farm.municipality}"

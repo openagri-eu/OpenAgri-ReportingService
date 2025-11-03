@@ -94,6 +94,8 @@ def create_pdf_from_operations(
         address, farm, identifier = get_parcel_info(
             parcel_id, token, geolocator, identifier_flag=True
         )
+        address = address.address
+
         pdf.set_font("FreeSerif", "B", 10)
         pdf.cell(40, 8, "Parcel Location:")
         pdf.set_font("FreeSerif", "", 10)
@@ -162,6 +164,7 @@ def create_pdf_from_operations(
                     address, farm, identifier = get_parcel_info(
                         parcel_id.split(":")[-1], token, geolocator, identifier_flag=True
                     )
+                    address = address.address
         start_time = (
             op.hasStartDatetime.strftime("%d/%m/%Y") if op.hasStartDatetime else ""
         )
@@ -288,6 +291,8 @@ def create_pdf_from_operations(
                             address, farm, identifier= get_parcel_info(
                                 parcel_id.split(":")[-1], token, geolocator, identifier_flag=True
                             )
+                            address = address.address
+
                     row.cell(address)
                     row.cell(identifier)
                     farm_local = f"Name: {farm.name} | Municipality: {farm.municipality}"

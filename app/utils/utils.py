@@ -75,27 +75,31 @@ class FarmInfo(BaseModel):
     municipality: str
     contactPerson: str
 
+class ParcelInfo(BaseModel):
+    address: str
+    area: float
+
 
 def get_parcel_info(
     parcel_id: str, token: dict, geolocator: Nominatim, identifier_flag: bool = False
 ):
-    address = ""
     farm = FarmInfo(
         description="", administrator="", vatID="", name="", municipality="", contactPerson=""
     )
+    parcel_info = ParcelInfo(address="", area=0.0)
     identifier = ""
     if not settings.REPORTING_USING_GATEKEEPER:
         if identifier_flag:
-            return address, farm, identifier
+            return parcel_info, farm, identifier
         else:
-            return address, farm
+            return parcel_info, farm
     farm_parcel_info = make_get_request(
         url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS["parcel"]}{parcel_id}/',
         token=token,
         params={"format": "json"},
     )
     location = farm_parcel_info.get("location")
-
+    parcel_info.area = farm_parcel_info.get("area", 0.0)
     try:
         identifier = farm_parcel_info.get("identifier")
         if location:
@@ -106,11 +110,12 @@ def get_parcel_info(
             country = address_details.get("country")
             postcode = address_details.get("postcode")
             address = f"Country: {country} | City: {city} | Postcode: {postcode}"
+            parcel_info.address = address
     except Exception as e:
         logger.error("Error with geolocator", e)
         if identifier_flag:
-            return address, farm, identifier
-        return address, farm
+            return parcel_info, farm, identifier
+        return parcel_info, farm
 
     farm_id = farm_parcel_info.get("farm").get("@id", None)
     if farm_id:
@@ -133,8 +138,8 @@ def get_parcel_info(
         )
 
     if identifier_flag:
-        return address, farm, identifier
-    return address, farm
+        return parcel_info, farm, identifier
+    return parcel_info, farm
 
 
 def get_farm_operation_data(
