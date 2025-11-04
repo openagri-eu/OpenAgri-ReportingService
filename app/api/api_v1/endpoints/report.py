@@ -198,7 +198,7 @@ async def generate_animal_report(
 
 
 @router.post("/fertilization-report/", response_model=PDF)
-async def generate_irrigation_report(
+async def generate_fertilization_report(
     background_tasks: BackgroundTasks,
     token=Depends(deps.get_current_user),
     fertilization_id: str = None,
@@ -208,7 +208,7 @@ async def generate_irrigation_report(
     parcel_id: str = None
 ):
     """
-    Generates Irrigation Report PDF file
+    Generates Fertilization Report PDF file
 
     """
     uuid_v4 = str(uuid.uuid4())
@@ -243,7 +243,7 @@ async def generate_irrigation_report(
 
 
 @router.post("/pesticides-report/", response_model=PDF)
-async def generate_irrigation_report(
+async def generate_pesticides_report(
     background_tasks: BackgroundTasks,
     token=Depends(deps.get_current_user),
     pesticide_id: str = None,

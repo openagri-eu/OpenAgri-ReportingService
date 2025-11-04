@@ -72,10 +72,10 @@ def create_pdf_from_animals(
         if parcel_id:
             parcel = parcel_id.split(":")[3]
             if parcel:
-                address, farm, identifier = get_parcel_info(
+                parcel_data, farm, identifier = get_parcel_info(
                     parcel_id.split(":")[-1], token, geolocator, identifier_flag=True
                 )
-                address = address.address
+                address = parcel_data.address
 
         pdf.set_font("FreeSerif", "B", 10)
         pdf.cell(40, 8, "Created:")
@@ -186,10 +186,10 @@ def create_pdf_from_animals(
                 if parcel_id:
                     parcel = parcel_id.split(":")[3]
                     if parcel:
-                        address, _, identifier = get_parcel_info(
+                        parcel_data, _, identifier = get_parcel_info(
                             parcel_id.split(":")[-1], token, geolocator, identifier_flag=True
                         )
-                        address.address = address.address
+                        address = parcel_data.address
 
                 row.cell(address)
                 row.cell(identifier)

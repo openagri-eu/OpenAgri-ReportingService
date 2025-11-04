@@ -27,6 +27,7 @@ class Settings(BaseSettings):
         "irrigations": "/IrrigationOperations/",
         "fertilization": "/FertilizationOperations/",
         "pesticides": "/CropProtectionOperations/",
+        "pest": "/Pesticides/",
         "activity_types": "/FarmCalendarActivityTypes/",
         "observations": "/Observations/",
         "operations": "/CompostOperations/",

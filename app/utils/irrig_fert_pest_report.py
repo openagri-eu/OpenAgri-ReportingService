@@ -1,23 +1,26 @@
 import json
 import logging
 import os
+from datetime import datetime
+from typing import Optional, List
 
 from fastapi import HTTPException
 from fpdf.fonts import FontFace
 
 from core import settings
-from utils import EX, add_fonts, decode_dates_filters, get_parcel_info
-from schemas.irrigation import *
+from schemas import IrrigationOperation, FertilizationOperation, CropProtectionOperation
+from utils import EX, add_fonts, decode_dates_filters, get_parcel_info, get_pesticide
 from utils.farm_calendar_report import geolocator
+from utils.generate_aggregation_data import generate_total_volume_graph, generate_amount_per_hectare, \
+    prepare_df_for_calculations, generate_aggregation_table_data
 from utils.json_handler import make_get_request
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def parse_irrigation_operations(data: dict, irrigation_flag: bool = True,
-    fertilization_flag: bool = False,
-) -> Optional[List[IrrigationOperation | FertilizationOperation | CropProtectionOperation]]:
+def parse_irrig_fert_operations(data: dict, irrigation_flag: bool = True,
+                                fertilization_flag: bool = False,
+                                ) -> Optional[List[IrrigationOperation | FertilizationOperation | CropProtectionOperation]]:
     """
     Parse list of irrigation or fertilization operations from JSON data
     """
@@ -91,10 +94,10 @@ def create_pdf_from_operations(
     pdf.multi_cell(0, 8, f"{from_date_local} / {to_date_local}", ln=True, fill=True)
 
     if parcel_id:
-        address, farm, identifier = get_parcel_info(
+        parcel_data, farm, identifier = get_parcel_info(
             parcel_id, token, geolocator, identifier_flag=True
         )
-        address = address.address
+        address = parcel_data.address
 
         pdf.set_font("FreeSerif", "B", 10)
         pdf.cell(40, 8, "Parcel Location:")
@@ -161,10 +164,10 @@ def create_pdf_from_operations(
             if parcel_id:
                 parcel = parcel_id.split(":")[3] if op.operatedOn else None
                 if parcel:
-                    address, farm, identifier = get_parcel_info(
+                    parcel_data, farm, identifier = get_parcel_info(
                         parcel_id.split(":")[-1], token, geolocator, identifier_flag=True
                     )
-                    address = address.address
+                    address = parcel_data.address
         start_time = (
             op.hasStartDatetime.strftime("%d/%m/%Y") if op.hasStartDatetime else ""
         )
@@ -288,10 +291,10 @@ def create_pdf_from_operations(
                     if parcel_id:
                         parcel = parcel_id.split(":")[3] if op.operatedOn else None
                         if parcel:
-                            address, farm, identifier= get_parcel_info(
+                            parcel_data, farm, identifier= get_parcel_info(
                                 parcel_id.split(":")[-1], token, geolocator, identifier_flag=True
                             )
-                            address = address.address
+                            address = parcel_data.address
 
                     row.cell(address)
                     row.cell(identifier)
@@ -312,11 +315,47 @@ def create_pdf_from_operations(
                         local_sys = op.usesIrrigationSystem
                     row.cell(local_sys)
                 elif fertilization_flag:
-                    row.cell(op.usesFertilizer)
+                    row.cell("Yes" if op.usesFertilizer else "No")
                     row.cell(op.hasApplicationMethod)
                 else:
-                    row.cell(op.usesPesticide)
+                    pest = ""
+                    if op.usesPesticide:
+                        pest_id = op.usesPesticide.get("@id", None)
+                        if pest_id:
+                            pest_id = pest_id.split(":")[3]
+                            pest = get_pesticide(pest_id, token)
+                            print(pest)
+                            pest = pest.get("hasCommercialName") if pest else ""
+                    row.cell(pest)
                 pdf.ln(2)
+
+    if parcel_defined and irrigation_flag:
+        pdf.ln(4)
+        area_parcel = int(float(parcel_data.area)/10_000) if float(parcel_data.area) > 0 else 0
+        df_for_calc = prepare_df_for_calculations(operations)
+        total_volume_graph = generate_total_volume_graph(df_for_calc, area_parcel)
+        pdf.ln(1)
+        amount_per_hc_graph = generate_amount_per_hectare(df_for_calc)
+        pdf.image(total_volume_graph, type='png', w=180)
+        pdf.image(amount_per_hc_graph, type='png', w=180)
+        dict_average_table = generate_aggregation_table_data(df_for_calc)
+        pdf.set_fill_color(0, 255, 255)
+        pdf.set_font("FreeSerif", "B", 10)
+        pdf.add_page()
+        pdf.cell(0, 8, "Aggregates")
+        with pdf.table(text_align="CENTER") as table:
+            row = table.row()
+            row.cell("Data")
+            row.cell("Per hectare")
+            row.cell("Total")
+
+            pdf.set_font("FreeSerif", "", 9)
+            pdf.set_fill_color(255, 255, 240)
+            for k, v in dict_average_table.items():
+                row = table.row()
+                row.cell(k)
+                row.cell(f"{v[0]:.2f}")
+                row.cell(f"{v[1]:.2f}")
 
     return pdf
 
@@ -373,7 +412,7 @@ def process_irrigation_fertilization_data(
                 json_data = json_data['@graph']
 
     if json_data:
-        operations = parse_irrigation_operations(json_data, irrigation_flag=irrigation_flag,
+        operations = parse_irrig_fert_operations(json_data, irrigation_flag=irrigation_flag,
                                                  fertilization_flag=fertilization_flag)
     else:
         operations = []

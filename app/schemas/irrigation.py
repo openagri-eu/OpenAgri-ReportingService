@@ -29,8 +29,8 @@ class IrrigationOperation(GenericModel):
 
 class FertilizationOperation(IrrigationOperation):
     hasApplicationMethod: Optional[str] = None
-    usesFertilizer: Optional[str] = None
+    usesFertilizer: Optional[dict] = None
 
 class CropProtectionOperation(GenericModel):
     operatedOn: Optional[dict] = None
-    usesPesticide: Optional[str] = None
+    usesPesticide: Optional[dict] = None

@@ -98,8 +98,36 @@ def get_parcel_info(
         token=token,
         params={"format": "json"},
     )
+
+    if not farm_parcel_info:
+        if identifier_flag:
+            return parcel_info, farm, identifier
+        else:
+            return parcel_info, farm
+
     location = farm_parcel_info.get("location")
     parcel_info.area = farm_parcel_info.get("area", 0.0)
+    farm_id = farm_parcel_info.get("farm").get("@id", None)
+
+    if farm_id:
+        farm_id = farm_id.split(":")[-1]
+    if farm_id:
+        farm_info = make_get_request(
+            url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS["farm"]}{farm_id}/',
+            token=token,
+            params={"format": "json"},
+        )
+
+        contact = farm_info.get("contactPerson", {})
+        farm = FarmInfo(
+            description=farm_info.get("description", ""),
+            administrator=farm_info.get("administrator", ""),
+            vatID=farm_info.get("vatID", ""),
+            name=farm_info.get("name", ""),
+            municipality=farm_info.get("address", {}).get("municipality", ""),
+            contactPerson=f"{contact.get('firstname', '')} {contact.get('lastname', '')}"
+        )
+
     try:
         identifier = farm_parcel_info.get("identifier")
         if location:
@@ -117,25 +145,6 @@ def get_parcel_info(
             return parcel_info, farm, identifier
         return parcel_info, farm
 
-    farm_id = farm_parcel_info.get("farm").get("@id", None)
-    if farm_id:
-        farm_id = farm_id.split(":")[-1]
-    if farm_id:
-        farm_info = make_get_request(
-            url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS["farm"]}{farm_id}/',
-            token=token,
-            params={"format": "json"},
-        )
-
-        contact = farm_info.get("contactPerson", {})
-        farm = FarmInfo(
-            description=farm_info.get("description", ""),
-            administrator=farm_info.get("administrator", ""),
-            vatID=farm_info.get("vatID", ""),
-            name=farm_info.get("name", ""),
-            municipality=farm_info.get("address", {}).get("municipality", ""),
-            contactPerson=f"{contact.get('firstname','')} {contact.get('lastname','')}"
-        )
 
     if identifier_flag:
         return parcel_info, farm, identifier
@@ -175,3 +184,19 @@ def get_farm_operation_data(
     compost_turning_ops = make_get_request(url=turn_url, token=token, params=params)
     if compost_turning_ops:
         materials.extend(compost_turning_ops)
+
+
+def get_pesticide(
+    id: str, token: dict[str, str]
+):
+    """
+    Fetches pesticide for Crop Operation
+
+    """
+    base_url = settings.REPORTING_FARMCALENDAR_BASE_URL
+    urls = settings.REPORTING_FARMCALENDAR_URLS
+
+    pest_url = f'{base_url}{urls["pest"]}{id}/'
+    pest = make_get_request(url=pest_url, token=token, params={"format": "json"})
+    return pest
+

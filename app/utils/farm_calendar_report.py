@@ -15,12 +15,12 @@ from utils import (
     add_fonts,
     decode_dates_filters,
     get_parcel_info,
-    get_farm_operation_data,
+    get_farm_operation_data, FarmInfo,
 )
 from utils.json_handler import make_get_request
 from geopy.geocoders import Nominatim
 
-geolocator = Nominatim(user_agent="reporting_app", timeout=2)
+geolocator = Nominatim(user_agent="reporting_open_agri_app", timeout=5)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -107,10 +107,10 @@ def create_farm_calendar_pdf(
 
         address, farm = "", ""
         if parcel_id:
-            address, farm = get_parcel_info(
+            parcel_data, farm = get_parcel_info(
                 parcel_id.split(":")[-1], token, geolocator
             )
-            address = address.address
+            address = parcel_data.address
 
         pdf.set_font("FreeSerif", "B", 10)
         pdf.cell(40, 8, "Parcel Location:")
@@ -187,9 +187,9 @@ def create_farm_calendar_pdf(
                     else None
                 )
                 row.cell(x.typeName if x else "N/A")
-                row.cell(x.quantityValue.unit if x.quantityValue else "N/A")
+                row.cell(x.quantityValue.unit if x and x.quantityValue else "N/A")
                 row.cell(
-                    str(x.quantityValue.numericValue) if x.quantityValue else "N/A"
+                    str(x.quantityValue.numericValue) if  x and x.quantityValue else "N/A"
                 )
 
     pdf.set_fill_color(0, 255, 255)
@@ -227,7 +227,11 @@ def create_farm_calendar_pdf(
                 )
                 row.cell(operation.responsibleAgent)
                 machinery_ids = ""
-                address, farm = "", ""
+                address, farm = "",  FarmInfo(
+                                    description="", administrator="",
+                                    vatID="", name="", municipality="",
+                                    contactPerson=""
+                                    )
                 if operation.usesAgriculturalMachinery:
                     machinery_ids = ", ".join(
                         [
@@ -251,8 +255,8 @@ def create_farm_calendar_pdf(
                             .get("@id", "N/A:N/A")
                             .split(":")[-1]
                         )
-                        address, farm = get_parcel_info(parcel_id, token, geolocator)
-                        address = address.address
+                        parcel_data, farm = get_parcel_info(parcel_id, token, geolocator)
+                        address = parcel_data.address
 
                 row.cell(f"{machinery_ids}")
                 row.cell(address)
