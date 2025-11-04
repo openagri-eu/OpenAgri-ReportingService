@@ -75,6 +75,7 @@ class FarmInfo(BaseModel):
     municipality: str
     contactPerson: str
 
+
 class ParcelInfo(BaseModel):
     address: str
     area: float
@@ -84,7 +85,12 @@ def get_parcel_info(
     parcel_id: str, token: dict, geolocator: Nominatim, identifier_flag: bool = False
 ):
     farm = FarmInfo(
-        description="", administrator="", vatID="", name="", municipality="", contactPerson=""
+        description="",
+        administrator="",
+        vatID="",
+        name="",
+        municipality="",
+        contactPerson="",
     )
     parcel_info = ParcelInfo(address="", area=0.0)
     identifier = ""
@@ -125,7 +131,7 @@ def get_parcel_info(
             vatID=farm_info.get("vatID", ""),
             name=farm_info.get("name", ""),
             municipality=farm_info.get("address", {}).get("municipality", ""),
-            contactPerson=f"{contact.get('firstname', '')} {contact.get('lastname', '')}"
+            contactPerson=f"{contact.get('firstname', '')} {contact.get('lastname', '')}",
         )
 
     try:
@@ -144,7 +150,6 @@ def get_parcel_info(
         if identifier_flag:
             return parcel_info, farm, identifier
         return parcel_info, farm
-
 
     if identifier_flag:
         return parcel_info, farm, identifier
@@ -186,9 +191,7 @@ def get_farm_operation_data(
         materials.extend(compost_turning_ops)
 
 
-def get_pesticide(
-    id: str, token: dict[str, str]
-):
+def get_pesticide(id: str, token: dict[str, str]):
     """
     Fetches pesticide for Crop Operation
 
@@ -199,4 +202,3 @@ def get_pesticide(
     pest_url = f'{base_url}{urls["pest"]}{id}/'
     pest = make_get_request(url=pest_url, token=token, params={"format": "json"})
     return pest
-

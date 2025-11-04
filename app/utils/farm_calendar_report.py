@@ -15,7 +15,8 @@ from utils import (
     add_fonts,
     decode_dates_filters,
     get_parcel_info,
-    get_farm_operation_data, FarmInfo,
+    get_farm_operation_data,
+    FarmInfo,
 )
 from utils.json_handler import make_get_request
 from geopy.geocoders import Nominatim
@@ -100,10 +101,15 @@ def create_farm_calendar_pdf(
 
         elif agr_mach_id:
             agr_resp = make_get_request(
-                    url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS["machines"]}{agr_mach_id}/',
-                    token=token,
-                    params={"format": "json"})
-            parcel_id = agr_resp.get("hasAgriParcel", {}).get("@id", None) if agr_mach_id else None
+                url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS["machines"]}{agr_mach_id}/',
+                token=token,
+                params={"format": "json"},
+            )
+            parcel_id = (
+                agr_resp.get("hasAgriParcel", {}).get("@id", None)
+                if agr_mach_id
+                else None
+            )
 
         address, farm = "", ""
         if parcel_id:
@@ -189,7 +195,9 @@ def create_farm_calendar_pdf(
                 row.cell(x.typeName if x else "N/A")
                 row.cell(x.quantityValue.unit if x and x.quantityValue else "N/A")
                 row.cell(
-                    str(x.quantityValue.numericValue) if  x and x.quantityValue else "N/A"
+                    str(x.quantityValue.numericValue)
+                    if x and x.quantityValue
+                    else "N/A"
                 )
 
     pdf.set_fill_color(0, 255, 255)
@@ -227,11 +235,17 @@ def create_farm_calendar_pdf(
                 )
                 row.cell(operation.responsibleAgent)
                 machinery_ids = ""
-                address, farm = "",  FarmInfo(
-                                    description="", administrator="",
-                                    vatID="", name="", municipality="",
-                                    contactPerson=""
-                                    )
+                address, farm = (
+                    "",
+                    FarmInfo(
+                        description="",
+                        administrator="",
+                        vatID="",
+                        name="",
+                        municipality="",
+                        contactPerson="",
+                    ),
+                )
                 if operation.usesAgriculturalMachinery:
                     machinery_ids = ", ".join(
                         [
@@ -255,7 +269,9 @@ def create_farm_calendar_pdf(
                             .get("@id", "N/A:N/A")
                             .split(":")[-1]
                         )
-                        parcel_data, farm = get_parcel_info(parcel_id, token, geolocator)
+                        parcel_data, farm = get_parcel_info(
+                            parcel_id, token, geolocator
+                        )
                         address = parcel_data.address
 
                 row.cell(f"{machinery_ids}")
@@ -400,7 +416,7 @@ def process_farm_calendar_data(
     operation_id: str = None,
     from_date: datetime.date = None,
     to_date: datetime.date = None,
-    parcel_id: str = None
+    parcel_id: str = None,
 ) -> None:
     """
     Process farm calendar data and generate PDF report
@@ -445,7 +461,7 @@ def process_farm_calendar_data(
                         )
 
                         if parcel_id:
-                            params['parcel'] = parcel_id
+                            params["parcel"] = parcel_id
                         operations = make_get_request(
                             url=operation_url,
                             token=token,
@@ -511,11 +527,13 @@ def process_farm_calendar_data(
                 obs = [x.get("hasMeasurement") for x in farm_act]
                 materials = [x.get("hasNestedOperation") for x in farm_act]
 
-                obs =  list(itertools.chain.from_iterable(obs)) if obs else []
-                materials = list(itertools.chain.from_iterable(materials)) if obs else []
+                obs = list(itertools.chain.from_iterable(obs)) if obs else []
+                materials = (
+                    list(itertools.chain.from_iterable(materials)) if obs else []
+                )
 
                 try:
-                    obs = [o['hasMember'] for o in obs]
+                    obs = [o["hasMember"] for o in obs]
                     obs = list(itertools.chain.from_iterable(obs)) if obs else []
                 except Exception:
                     # If this occurs it means we use new data type (not old)
@@ -527,7 +545,7 @@ def process_farm_calendar_data(
                     activity_type_info=calendar_activity_type,
                     observations=obs,
                     farm_activities=farm_act,
-                    materials=materials
+                    materials=materials,
                 )
             else:
                 calendar_data = FarmCalendarData(

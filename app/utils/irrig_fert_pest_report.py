@@ -11,16 +11,25 @@ from core import settings
 from schemas import IrrigationOperation, FertilizationOperation, CropProtectionOperation
 from utils import EX, add_fonts, decode_dates_filters, get_parcel_info, get_pesticide
 from utils.farm_calendar_report import geolocator
-from utils.generate_aggregation_data import generate_total_volume_graph, generate_amount_per_hectare, \
-    prepare_df_for_calculations, generate_aggregation_table_data
+from utils.generate_aggregation_data import (
+    generate_total_volume_graph,
+    generate_amount_per_hectare,
+    prepare_df_for_calculations,
+    generate_aggregation_table_data,
+)
 from utils.json_handler import make_get_request
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def parse_irrig_fert_operations(data: dict, irrigation_flag: bool = True,
-                                fertilization_flag: bool = False,
-                                ) -> Optional[List[IrrigationOperation | FertilizationOperation | CropProtectionOperation]]:
+def parse_irrig_fert_operations(
+    data: dict,
+    irrigation_flag: bool = True,
+    fertilization_flag: bool = False,
+) -> Optional[
+    List[IrrigationOperation | FertilizationOperation | CropProtectionOperation]
+]:
     """
     Parse list of irrigation or fertilization operations from JSON data
     """
@@ -40,8 +49,11 @@ def parse_irrig_fert_operations(data: dict, irrigation_flag: bool = True,
 
 
 def create_pdf_from_operations(
-    operations: List[IrrigationOperation] | List[FertilizationOperation | CropProtectionOperation], token: dict[str, str] = None,
-    data_used: bool = False, parcel_id: str = None,
+    operations: List[IrrigationOperation]
+    | List[FertilizationOperation | CropProtectionOperation],
+    token: dict[str, str] = None,
+    data_used: bool = False,
+    parcel_id: str = None,
     from_date: datetime.date = None,
     to_date: datetime.date = None,
     irrigation_flag: bool = True,
@@ -57,7 +69,7 @@ def create_pdf_from_operations(
 
     EX.ln(pdf)
 
-    today = datetime.now().strftime('%d/%m/%Y')
+    today = datetime.now().strftime("%d/%m/%Y")
     pdf.set_font("FreeSerif", "B", 14)
     pdf.cell(0, 10, f"Irrigation Operation Report", ln=True, align="C")
     pdf.set_font("FreeSerif", style="", size=9)
@@ -86,7 +98,7 @@ def create_pdf_from_operations(
     if to_date:
         to_date_local = to_date.strftime("%Y-%m-%d")
     else:
-        to_date_local = ''
+        to_date_local = ""
 
     pdf.set_font("FreeSerif", "B", 10)
     pdf.cell(40, 8, "Reporting Period")
@@ -165,7 +177,10 @@ def create_pdf_from_operations(
                 parcel = parcel_id.split(":")[3] if op.operatedOn else None
                 if parcel:
                     parcel_data, farm, identifier = get_parcel_info(
-                        parcel_id.split(":")[-1], token, geolocator, identifier_flag=True
+                        parcel_id.split(":")[-1],
+                        token,
+                        geolocator,
+                        identifier_flag=True,
                     )
                     address = parcel_data.address
         start_time = (
@@ -291,14 +306,19 @@ def create_pdf_from_operations(
                     if parcel_id:
                         parcel = parcel_id.split(":")[3] if op.operatedOn else None
                         if parcel:
-                            parcel_data, farm, identifier= get_parcel_info(
-                                parcel_id.split(":")[-1], token, geolocator, identifier_flag=True
+                            parcel_data, farm, identifier = get_parcel_info(
+                                parcel_id.split(":")[-1],
+                                token,
+                                geolocator,
+                                identifier_flag=True,
                             )
                             address = parcel_data.address
 
                     row.cell(address)
                     row.cell(identifier)
-                    farm_local = f"Name: {farm.name} | Municipality: {farm.municipality}"
+                    farm_local = (
+                        f"Name: {farm.name} | Municipality: {farm.municipality}"
+                    )
                     row.cell(farm_local)
 
                 row.cell(
@@ -331,13 +351,15 @@ def create_pdf_from_operations(
 
     if parcel_defined and irrigation_flag:
         pdf.ln(4)
-        area_parcel = int(float(parcel_data.area)/10_000) if float(parcel_data.area) > 0 else 0
+        area_parcel = (
+            int(float(parcel_data.area) / 10_000) if float(parcel_data.area) > 0 else 0
+        )
         df_for_calc = prepare_df_for_calculations(operations)
         total_volume_graph = generate_total_volume_graph(df_for_calc, area_parcel)
         pdf.ln(1)
         amount_per_hc_graph = generate_amount_per_hectare(df_for_calc)
-        pdf.image(total_volume_graph, type='png', w=180)
-        pdf.image(amount_per_hc_graph, type='png', w=180)
+        pdf.image(total_volume_graph, type="png", w=180)
+        pdf.image(amount_per_hc_graph, type="png", w=180)
         dict_average_table = generate_aggregation_table_data(df_for_calc)
         pdf.set_fill_color(0, 255, 255)
         pdf.set_font("FreeSerif", "B", 10)
@@ -370,22 +392,22 @@ def process_irrigation_fertilization_data(
     parcel_id: str = None,
     irrigation_flag: bool = True,
     fertilization_flag: bool = False,
-    pesticides_flag: bool = False
+    pesticides_flag: bool = False,
 ) -> None:
     """
     Process irrigation data and generate PDF report
     """
     data_used = False
-    url_use = 'irrigations'
+    url_use = "irrigations"
 
     if fertilization_flag:
-        url_use = 'fertilization'
+        url_use = "fertilization"
     elif pesticides_flag:
-        url_use = 'pesticides'
+        url_use = "pesticides"
 
     if operation_id:
         json_data = make_get_request(
-            url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS[url_use]}{operation_id}/',
+            url=f"{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS[url_use]}{operation_id}/",
             token=token,
             params={"format": "json"},
         )
@@ -396,11 +418,11 @@ def process_irrigation_fertilization_data(
         if not data:
             params = {"format": "json"}
             if parcel_id:
-                params['parcel'] = parcel_id
+                params["parcel"] = parcel_id
 
             decode_dates_filters(params, from_date, to_date)
             json_data = make_get_request(
-                url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS[url_use]}',
+                url=f"{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS[url_use]}",
                 token=token,
                 params=params,
             )
@@ -409,17 +431,28 @@ def process_irrigation_fertilization_data(
             data_used = True
             json_data = json.loads(data)
             if json_data:
-                json_data = json_data['@graph']
+                json_data = json_data["@graph"]
 
     if json_data:
-        operations = parse_irrig_fert_operations(json_data, irrigation_flag=irrigation_flag,
-                                                 fertilization_flag=fertilization_flag)
+        operations = parse_irrig_fert_operations(
+            json_data,
+            irrigation_flag=irrigation_flag,
+            fertilization_flag=fertilization_flag,
+        )
     else:
         operations = []
 
     try:
-        pdf = create_pdf_from_operations(operations, token, data_used, parcel_id=parcel_id, from_date=from_date,
-    to_date=to_date, irrigation_flag=irrigation_flag,  fertilization_flag=fertilization_flag)
+        pdf = create_pdf_from_operations(
+            operations,
+            token,
+            data_used,
+            parcel_id=parcel_id,
+            from_date=from_date,
+            to_date=to_date,
+            irrigation_flag=irrigation_flag,
+            fertilization_flag=fertilization_flag,
+        )
     except Exception:
         raise HTTPException(
             status_code=400, detail="PDF generation of irrigation report failed."
@@ -427,4 +460,3 @@ def process_irrigation_fertilization_data(
     pdf_dir = f"{settings.PDF_DIRECTORY}{pdf_file_name}"
     os.makedirs(os.path.dirname(f"{pdf_dir}.pdf"), exist_ok=True)
     pdf.output(f"{pdf_dir}.pdf")
-

@@ -144,7 +144,13 @@ def create_pdf_from_animals(
             "Invalidated:",
         )
         pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, f"{an.invalidatedAtTime.strftime('%d/%m/%Y') if an.invalidatedAtTime else 'No'}", ln=True, fill=True)
+        pdf.multi_cell(
+            0,
+            8,
+            f"{an.invalidatedAtTime.strftime('%d/%m/%Y') if an.invalidatedAtTime else 'No'}",
+            ln=True,
+            fill=True,
+        )
 
         pdf.set_font("FreeSerif", "B", 10)
         pdf.cell(
@@ -153,8 +159,13 @@ def create_pdf_from_animals(
             "Group Member:",
         )
         pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, f"{an.isMemberOfAnimalGroup.hasName if an.isMemberOfAnimalGroup else 'No'}", ln=True,
-                       fill=True)
+        pdf.multi_cell(
+            0,
+            8,
+            f"{an.isMemberOfAnimalGroup.hasName if an.isMemberOfAnimalGroup else 'No'}",
+            ln=True,
+            fill=True,
+        )
 
     if len(animals) > 1:
         animals.sort(key=lambda x: x.dateCreated)
@@ -187,7 +198,10 @@ def create_pdf_from_animals(
                     parcel = parcel_id.split(":")[3]
                     if parcel:
                         parcel_data, _, identifier = get_parcel_info(
-                            parcel_id.split(":")[-1], token, geolocator, identifier_flag=True
+                            parcel_id.split(":")[-1],
+                            token,
+                            geolocator,
+                            identifier_flag=True,
                         )
                         address = parcel_data.address
 
