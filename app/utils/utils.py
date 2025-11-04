@@ -202,3 +202,4 @@ def get_pesticide(id: str, token: dict[str, str]):
     pest_url = f'{base_url}{urls["pest"]}{id}/'
     pest = make_get_request(url=pest_url, token=token, params={"format": "json"})
     return pest
+
