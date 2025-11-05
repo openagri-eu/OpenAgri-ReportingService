@@ -16,6 +16,8 @@ from utils.generate_aggregation_data import (
     generate_amount_per_hectare,
     prepare_df_for_calculations,
     generate_aggregation_table_data,
+    get_pest_from_obj,
+    pesticides_aggregation,
 )
 from utils.json_handler import make_get_request
 
@@ -71,7 +73,13 @@ def create_pdf_from_operations(
 
     today = datetime.now().strftime("%d/%m/%Y")
     pdf.set_font("FreeSerif", "B", 14)
-    pdf.cell(0, 10, f"Irrigation Operation Report", ln=True, align="C")
+    title = "Pesticides"
+    if irrigation_flag:
+        title = "Irrigation"
+    elif fertilization_flag:
+        title = "Fertilization"
+
+    pdf.cell(0, 10, f"{title} Operation Report", ln=True, align="C")
     pdf.set_font("FreeSerif", style="", size=9)
     pdf.cell(
         0,
@@ -265,6 +273,7 @@ def create_pdf_from_operations(
     if len(operations) > 1:
         if not data_used:
             operations.sort(key=lambda x: x.hasStartDatetime)
+        pdf.set_y(pdf.get_y() - 20)
         pdf.set_fill_color(0, 255, 255)
         with pdf.table(text_align="CENTER") as table:
             row = table.row()
@@ -340,44 +349,58 @@ def create_pdf_from_operations(
                 else:
                     pest = ""
                     if op.usesPesticide:
-                        pest_id = op.usesPesticide.get("@id", None)
-                        if pest_id:
-                            pest_id = pest_id.split(":")[3]
-                            pest = get_pesticide(pest_id, token)
-                            print(pest)
-                            pest = pest.get("hasCommercialName") if pest else ""
+                        pest = get_pest_from_obj(op, token)
                     row.cell(pest)
                 pdf.ln(2)
 
-    if parcel_defined and irrigation_flag:
-        pdf.ln(4)
-        area_parcel = (
-            int(float(parcel_data.area) / 10_000) if float(parcel_data.area) > 0 else 0
-        )
-        df_for_calc = prepare_df_for_calculations(operations)
-        total_volume_graph = generate_total_volume_graph(df_for_calc, area_parcel)
-        pdf.ln(1)
-        amount_per_hc_graph = generate_amount_per_hectare(df_for_calc)
-        pdf.image(total_volume_graph, type="png", w=180)
-        pdf.image(amount_per_hc_graph, type="png", w=180)
-        dict_average_table = generate_aggregation_table_data(df_for_calc)
-        pdf.set_fill_color(0, 255, 255)
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.add_page()
-        pdf.cell(0, 8, "Aggregates")
-        with pdf.table(text_align="CENTER") as table:
-            row = table.row()
-            row.cell("Data")
-            row.cell("Per hectare")
-            row.cell("Total")
-
-            pdf.set_font("FreeSerif", "", 9)
-            pdf.set_fill_color(255, 255, 240)
-            for k, v in dict_average_table.items():
+    if operations and parcel_defined:
+        if irrigation_flag:
+            pdf.ln(4)
+            area_parcel = (
+                int(float(parcel_data.area) / 10_000)
+                if float(parcel_data.area) > 0
+                else 0
+            )
+            df_for_calc = prepare_df_for_calculations(operations)
+            total_volume_graph = generate_total_volume_graph(df_for_calc, area_parcel)
+            pdf.ln(1)
+            amount_per_hc_graph = generate_amount_per_hectare(df_for_calc)
+            pdf.image(total_volume_graph, type="png", w=180)
+            pdf.image(amount_per_hc_graph, type="png", w=180)
+            dict_average_table = generate_aggregation_table_data(df_for_calc)
+            pdf.set_fill_color(0, 255, 255)
+            pdf.set_font("FreeSerif", "B", 10)
+            pdf.add_page()
+            pdf.cell(0, 8, "Aggregates")
+            with pdf.table(text_align="CENTER") as table:
                 row = table.row()
-                row.cell(k)
-                row.cell(f"{v[0]:.2f}")
-                row.cell(f"{v[1]:.2f}")
+                row.cell("Data")
+                row.cell("Per hectare (m3)")
+                row.cell("Total volume (m3)")
+
+                pdf.set_font("FreeSerif", "", 9)
+                pdf.set_fill_color(255, 255, 240)
+                for k, v in dict_average_table.items():
+                    row = table.row()
+                    row.cell(k)
+                    row.cell(f"{v[0]:.2f}")
+                    row.cell(f"{v[1]:.2f}")
+
+        elif isinstance(operations[0], CropProtectionOperation):
+            pesticide_sums = pesticides_aggregation(operations, token)
+            pdf.set_fill_color(0, 255, 255)
+            pdf.set_font("FreeSerif", "B", 10)
+            pdf.add_page()
+            with pdf.table(text_align="CENTER") as table:
+                row = table.row()
+                row.cell("Pesticide")
+                row.cell("Total")
+                pdf.set_font("FreeSerif", "", 9)
+                pdf.set_fill_color(255, 255, 240)
+                for _, row_df in pesticide_sums.iterrows():
+                    row = table.row()
+                    row.cell(row_df["Pesticide"])
+                    row.cell(f"{row_df['Dose']:.2f} {row_df['Unit']}")
 
     return pdf
 

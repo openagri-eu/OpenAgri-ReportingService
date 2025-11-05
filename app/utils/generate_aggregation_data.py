@@ -4,11 +4,40 @@ from typing import List
 import pandas as pd
 import matplotlib
 
+from utils import get_pesticide
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
-from schemas import IrrigationOperation
+from schemas import IrrigationOperation, CropProtectionOperation
+
+
+def get_pest_from_obj(pt: CropProtectionOperation, token: dict | str):
+    pest_id = pt.usesPesticide.get("@id", None) if pt.usesPesticide else None
+    pest_name = ""
+    if pest_id:
+        pest_id = pest_id.split(":")[3]
+        pest = get_pesticide(pest_id, token)
+        pest_name = pest.get("hasCommercialName") if pest else ""
+    return pest_name
+
+
+def pesticides_aggregation(
+    pests: List[CropProtectionOperation], token: dict | str
+) -> pd.DataFrame:
+    data_for_df = []
+    for pt in pests:
+        data_for_df.append(
+            {
+                "Dose": pt.hasAppliedAmount.numericValue if pt.hasAppliedAmount else 0,
+                "Pesticide": get_pest_from_obj(pt, token),
+                "Unit": pt.hasAppliedAmount.unit if pt.hasAppliedAmount else "",
+            }
+        )
+    df = pd.DataFrame(data_for_df)
+    pesticide_sums = df.groupby(["Pesticide", "Unit"])["Dose"].sum().reset_index()
+    return pesticide_sums
 
 
 def prepare_df_for_calculations(
