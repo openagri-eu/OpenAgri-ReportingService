@@ -37,7 +37,14 @@ class EX(FPDF):
 
     def footer(self):
         self.set_y(-15)
-        self.cell(0, 10, "Page %s" % self.page_no(), 0, 0, "C")
+        self.set_font("FreeSerif", "", 7)
+        acknowledgement_text = """
+            \tOpenAgri has received funding from the EU's Horizon Europe research and  innovation programme under Grant Agreement no. 101134083. This output reflects
+            only the author's view and the European Commission cannot be held responsible for any use that may be made of the information contained therein.
+        """
+        self.image('assets/eu.png', x=self.x, y=self.y, w=20)
+        self.set_x(self.get_x()+10)
+        self.multi_cell(200, 2, acknowledgement_text, border=0, align="J")
 
 
 def decode_jwt_token(token: str) -> dict:
