@@ -273,11 +273,18 @@ def create_pdf_from_operations(
     if len(operations) > 1:
         if not data_used:
             operations.sort(key=lambda x: x.hasStartDatetime)
-        pdf.set_y(pdf.get_y() - 20)
+        pdf.ln(3)
+        pdf.set_font("FreeSerif", "B", 10)
+        pdf.cell(30, 2, "Data table:")
+        y_table_start = pdf.get_y() - 70
+        if irrigation_flag:
+            y_table_start = pdf.get_y() - 30
+        if fertilization_flag:
+            y_table_start = pdf.get_y()
+        pdf.set_y(y_table_start)
         pdf.set_fill_color(0, 255, 255)
-        with pdf.table(text_align="CENTER") as table:
+        with pdf.table(text_align="CENTER",  padding=0.5) as table:
             row = table.row()
-            pdf.set_font("FreeSerif", "B", 10)
             row.cell("Start - End")
             if not parcel_defined:
                 row.cell("Parcel")
@@ -371,7 +378,8 @@ def create_pdf_from_operations(
             pdf.set_fill_color(0, 255, 255)
             pdf.set_font("FreeSerif", "B", 10)
             pdf.add_page()
-            pdf.cell(0, 8, "Aggregates")
+            pdf.cell(10, 2, "Aggregates:")
+            pdf.ln(4)
             with pdf.table(text_align="CENTER") as table:
                 row = table.row()
                 row.cell("Data")
@@ -391,6 +399,8 @@ def create_pdf_from_operations(
             pdf.set_fill_color(0, 255, 255)
             pdf.set_font("FreeSerif", "B", 10)
             pdf.add_page()
+            pdf.cell(10, 2, "Final report:")
+            pdf.ln(4)
             with pdf.table(text_align="CENTER") as table:
                 row = table.row()
                 row.cell("Pesticide")
