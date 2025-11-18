@@ -73,7 +73,7 @@ def create_pdf_from_operations(
 
     today = datetime.now().strftime("%d/%m/%Y")
     pdf.set_font("FreeSerif", "B", 14)
-    title = "Pesticides"
+    title = "Pesticide"
     if irrigation_flag:
         title = "Irrigation"
     elif fertilization_flag:
@@ -108,6 +108,9 @@ def create_pdf_from_operations(
     else:
         to_date_local = ""
 
+    pdf.set_font("FreeSerif", "B", 10)
+    pdf.cell(40, 8, "Farm Details")
+    pdf.multi_cell(0, 8, f"", ln=True, fill=False)
     pdf.set_font("FreeSerif", "B", 10)
     pdf.cell(40, 8, "Reporting Period")
     pdf.set_font("FreeSerif", "", 10)
@@ -275,7 +278,7 @@ def create_pdf_from_operations(
             operations.sort(key=lambda x: x.hasStartDatetime)
         pdf.ln(3)
         pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(30, 2, "Data table:")
+        pdf.cell(30, 2,f"{title}s")
         y_table_start = pdf.get_y() - 70
         if irrigation_flag:
             y_table_start = pdf.get_y() - 30
@@ -372,8 +375,18 @@ def create_pdf_from_operations(
             total_volume_graph = generate_total_volume_graph(df_for_calc, area_parcel)
             pdf.ln(1)
             amount_per_hc_graph = generate_amount_per_hectare(df_for_calc)
+            pdf.add_page()
+            pdf.set_font("FreeSerif", "B", 10)
+            pdf.cell(10, 2, "Graphs: ", ln=2)
+            pdf.ln(2)
+            pdf.set_font("FreeSerif", "", 8)
+            pdf.cell(10, 2, "Graph 1: ", ln=2)
+            pdf.ln(2)
             pdf.image(total_volume_graph, type="png", w=180)
+            pdf.cell(10, 2, "Graph 2: ", ln=1)
+            pdf.ln(2)
             pdf.image(amount_per_hc_graph, type="png", w=180)
+
             dict_average_table = generate_aggregation_table_data(df_for_calc)
             pdf.set_fill_color(0, 255, 255)
             pdf.set_font("FreeSerif", "B", 10)
