@@ -86,6 +86,8 @@ class FarmInfo(BaseModel):
 class ParcelInfo(BaseModel):
     address: str
     area: float
+    lat: float | None = 0
+    long: float | None = 0
 
 
 def get_parcel_info(
@@ -99,7 +101,7 @@ def get_parcel_info(
         municipality="",
         contactPerson="",
     )
-    parcel_info = ParcelInfo(address="", area=0.0)
+    parcel_info = ParcelInfo(address="", area=0.0, lat=0.0, long=0.0)
     identifier = ""
     if not settings.REPORTING_USING_GATEKEEPER:
         if identifier_flag:
@@ -144,7 +146,11 @@ def get_parcel_info(
     try:
         identifier = farm_parcel_info.get("identifier")
         if location:
-            coordinates = f"{location.get('lat')}, {location.get('long')}"
+            lat = location.get('lat')
+            long = location.get('long')
+            coordinates = f"{lat}, {long}"
+            parcel_info.lat = lat
+            parcel_info.long = long
             l_info = geolocator.reverse(coordinates)
             address_details = l_info.raw.get("address", {})
             city = address_details.get("city", "")
