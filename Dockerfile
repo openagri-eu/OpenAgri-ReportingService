@@ -1,4 +1,7 @@
+ARG SOURCE_REPO=https://github.com/openagri-eu/openagri-reportingservice
 FROM python:3.12
+LABEL org.opencontainers.image.source=${SOURCE_REPO}
+
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1

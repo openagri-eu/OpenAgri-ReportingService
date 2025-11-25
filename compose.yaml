@@ -17,7 +17,12 @@ services:
     depends_on:
       reportingdb:
         condition: service_healthy
-    build: .
+    image: ghcr.io/${DOCKER_REGISTRY}/openagri-reportingservice:${TAG}
+    build:
+      context: .
+      args:
+        SOURCE_REPO: ${SOURCE_REPO}
+
     command: /code/entrypoint.sh ${REPORTING_SERVICE_PORT}
     ports:
       - ${REPORTING_SERVICE_PORT}:${REPORTING_SERVICE_PORT}
