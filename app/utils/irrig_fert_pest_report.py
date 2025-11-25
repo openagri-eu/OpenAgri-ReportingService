@@ -289,11 +289,14 @@ def create_pdf_from_operations(
         pdf.ln(3)
         pdf.set_font("FreeSerif", "B", 10)
         pdf.cell(30, 2,f"{title}s", center=True)
-        y_table_start = pdf.get_y() - 70
-        if irrigation_flag:
-            y_table_start = pdf.get_y() - 30
-        if fertilization_flag:
-            y_table_start = pdf.get_y()
+        y_table_start = pdf.get_y()
+        if parcel_defined:
+            y_table_start = pdf.get_y() - 70
+            if irrigation_flag:
+                y_table_start = pdf.get_y() - 30
+            if fertilization_flag:
+                y_table_start = pdf.get_y()
+
         pdf.set_y(y_table_start)
         pdf.set_fill_color(0, 255, 255)
         with pdf.table(text_align="CENTER",  padding=0.5) as table:
