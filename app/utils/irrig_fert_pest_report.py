@@ -6,7 +6,6 @@ from datetime import datetime
 from typing import Optional, List
 
 from fastapi import HTTPException
-from fpdf.fonts import FontFace
 
 from core import settings
 from schemas import IrrigationOperation, FertilizationOperation, CropProtectionOperation
@@ -110,8 +109,10 @@ def create_pdf_from_operations(
     else:
         to_date_local = ""
 
-    pdf.set_font("FreeSerif", "B", 10)
-    pdf.cell(40, 8, "Farm Details", center=True)
+
+    pdf.set_font("FreeSerif", "B", 15)
+    pdf.set_x((pdf.w/4)-30  )
+    pdf.cell(30, 8, "1. Farm Details", align='L')
     pdf.multi_cell(0, 8, f"", ln=True, fill=False)
     pdf.set_font("FreeSerif", "B", 10)
     pdf.cell(40, 8, "Reporting Period")
@@ -184,7 +185,9 @@ def create_pdf_from_operations(
                 image_bytes = fetch_wms_image(parcel_data.lat, parcel_data.long)
                 image_file = io.BytesIO(image_bytes)
                 pdf.ln(2)
-                pdf.image(image_file, type="png", w=80)
+                x_start = (pdf.w - 100) / 2
+                pdf.set_x(x_start)
+                pdf.image(image_file, type="png", w=100)
             except SatelliteImageException:
                 logger.info("Satellite image issue happened, continue without image.")
         parcel_defined = True
@@ -286,21 +289,15 @@ def create_pdf_from_operations(
     if len(operations) > 1:
         if not data_used:
             operations.sort(key=lambda x: x.hasStartDatetime)
-        pdf.ln(3)
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(30, 2,f"{title}s", center=True)
-        y_table_start = pdf.get_y()
-        if parcel_defined:
-            y_table_start = pdf.get_y() - 70
-            if irrigation_flag:
-                y_table_start = pdf.get_y() - 30
-            if fertilization_flag:
-                y_table_start = pdf.get_y()
-
-        pdf.set_y(y_table_start)
+        pdf.set_font("FreeSerif", "B", 15)
+        pdf.ln(2)
+        pdf.set_x((pdf.w / 4) - 30)
+        pdf.cell(30, 2,f"2. {title}s", align='L', ln=True)
         pdf.set_fill_color(0, 255, 255)
-        with pdf.table(text_align="CENTER",  padding=0.5) as table:
+        pdf.ln(2)
+        with pdf.table(text_align="CENTER") as table:
             row = table.row()
+            pdf.set_font("FreeSerif", "B", 10)
             row.cell("Start - End")
             if not parcel_defined:
                 row.cell("Parcel")
@@ -374,7 +371,7 @@ def create_pdf_from_operations(
                     if op.usesPesticide:
                         pest = get_pest_from_obj(op, token)
                     row.cell(pest)
-                pdf.ln(2)
+
 
     if operations and parcel_defined:
         if irrigation_flag:
@@ -389,23 +386,26 @@ def create_pdf_from_operations(
             pdf.ln(1)
             amount_per_hc_graph = generate_amount_per_hectare(df_for_calc)
             pdf.add_page()
-            pdf.set_font("FreeSerif", "B", 10)
-            pdf.cell(10, 2, "Graphs: ", ln=2, center=True)
+            pdf.set_font("FreeSerif", "B", 15)
+            pdf.set_x((pdf.w / 4) - 30)
+            pdf.cell(30, 2, "3. Graphs: ", ln=2, align='L')
             pdf.ln(2)
-            pdf.set_font("FreeSerif", "", 8)
-            pdf.cell(10, 2, "Graph 1: ", ln=2, center=True)
+            pdf.set_font("FreeSerif", "", 10)
+            pdf.cell(10, 2, "Graph 1: ", ln=2, align='L')
             pdf.ln(2)
             pdf.image(total_volume_graph, type="png", w=180)
-            pdf.cell(10, 2, "Graph 2: ", ln=1, center=True)
+            pdf.cell(10, 2, "Graph 2: ", ln=1, align='L')
             pdf.ln(2)
             pdf.image(amount_per_hc_graph, type="png", w=180)
 
             dict_average_table = generate_aggregation_table_data(df_for_calc)
             pdf.set_fill_color(0, 255, 255)
-            pdf.set_font("FreeSerif", "B", 10)
+            pdf.set_font("FreeSerif", "B", 15)
             pdf.add_page()
-            pdf.cell(10, 2, "Aggregates:", center=True)
+            pdf.set_x((pdf.w / 4) - 30)
+            pdf.cell(30, 2, "4. Aggregates:", align='L')
             pdf.ln(4)
+            pdf.set_font("FreeSerif", "B", 10)
             with pdf.table(text_align="CENTER") as table:
                 row = table.row()
                 row.cell("Data")
@@ -423,10 +423,12 @@ def create_pdf_from_operations(
         elif isinstance(operations[0], CropProtectionOperation):
             pesticide_sums = pesticides_aggregation(operations, token)
             pdf.set_fill_color(0, 255, 255)
-            pdf.set_font("FreeSerif", "B", 10)
+            pdf.set_font("FreeSerif", "B", 15)
             pdf.add_page()
-            pdf.cell(10, 2, "Final report:", center=True)
+            pdf.set_x((pdf.w / 4) - 30)
+            pdf.cell(30, 2, "3. Final report:", align='L')
             pdf.ln(4)
+            pdf.set_font("FreeSerif", "B", 10)
             with pdf.table(text_align="CENTER") as table:
                 row = table.row()
                 row.cell("Pesticide")
