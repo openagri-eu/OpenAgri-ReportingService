@@ -294,7 +294,7 @@ def create_pdf_from_operations(
         pdf.set_x((pdf.w / 4) - 30)
         pdf.cell(30, 2,f"2. {title}s", align='L', ln=True)
         pdf.set_fill_color(0, 255, 255)
-        pdf.ln(2)
+        pdf.ln(4)
         with pdf.table(text_align="CENTER") as table:
             row = table.row()
             pdf.set_font("FreeSerif", "B", 10)
@@ -403,7 +403,7 @@ def create_pdf_from_operations(
             pdf.set_font("FreeSerif", "B", 15)
             pdf.add_page()
             pdf.set_x((pdf.w / 4) - 30)
-            pdf.cell(30, 2, "4. Aggregates:", align='L')
+            pdf.cell(30, 2, "4. Aggregates:", align='L', ln=True)
             pdf.ln(4)
             pdf.set_font("FreeSerif", "B", 10)
             with pdf.table(text_align="CENTER") as table:
@@ -426,7 +426,7 @@ def create_pdf_from_operations(
             pdf.set_font("FreeSerif", "B", 15)
             pdf.add_page()
             pdf.set_x((pdf.w / 4) - 30)
-            pdf.cell(30, 2, "3. Final report:", align='L')
+            pdf.cell(30, 2, "3. Final report:", align='L', ln=True)
             pdf.ln(4)
             pdf.set_font("FreeSerif", "B", 10)
             with pdf.table(text_align="CENTER") as table:
