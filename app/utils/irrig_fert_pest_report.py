@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from core import settings
 from schemas import IrrigationOperation, FertilizationOperation, CropProtectionOperation
 from utils.satellite_image_get import fetch_wms_image, SatelliteImageException
-from utils import EX, add_fonts, decode_dates_filters, get_parcel_info, get_pesticide
+from utils import EX, add_fonts, decode_dates_filters, get_parcel_info, display_pdf_parcel_details
 from utils.farm_calendar_report import geolocator
 from utils.generate_aggregation_data import (
     generate_total_volume_graph,
@@ -120,66 +120,7 @@ def create_pdf_from_operations(
     pdf.multi_cell(0, 8, f"{from_date_local} / {to_date_local}", ln=True, fill=True)
 
     if parcel_id:
-        parcel_data, farm, identifier = get_parcel_info(
-            parcel_id, token, geolocator, identifier_flag=True
-        )
-        address = parcel_data.address
-
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(40, 8, "Parcel Location:")
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, address, ln=True, fill=True)
-
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(40, 8, "Parcel Identifier:")
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, identifier, ln=True, fill=True)
-
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Farm Location:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        farm_local = f"Name: {farm.name} | Municipality: {farm.municipality}"
-        pdf.multi_cell(0, 8, farm_local, ln=True, fill=True)
-
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Administrator:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, farm.administrator, ln=True, fill=True)
-
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Contact Person:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, farm.contactPerson, ln=True, fill=True)
-
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Farm vat:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, farm.vatID, ln=True, fill=True)
-
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Farm Description:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, farm.description, fill=True)
+        parcel_data = display_pdf_parcel_details(pdf, parcel_id, geolocator, token)
         if parcel_data.long != 0 and parcel_data.lat != 0:
             try:
                 image_bytes = fetch_wms_image(parcel_data.lat, parcel_data.long)

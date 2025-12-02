@@ -16,7 +16,7 @@ from utils import (
     decode_dates_filters,
     get_parcel_info,
     get_farm_operation_data,
-    FarmInfo,
+    FarmInfo, display_pdf_parcel_details,
 )
 from utils.json_handler import make_get_request
 from geopy.geocoders import Nominatim
@@ -87,66 +87,7 @@ def create_farm_calendar_pdf(
 
     parcel_defined = False
     if parcel_id and len(calendar_data.operations) > 1:
-        parcel_data, farm, identifier = get_parcel_info(
-            parcel_id, token, geolocator, identifier_flag=True
-        )
-        address = parcel_data.address
-
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(40, 8, "Parcel Location:")
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, address, ln=True, fill=True)
-
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(40, 8, "Parcel Identifier:")
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, identifier, ln=True, fill=True)
-
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Farm Location:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        farm_local = f"Name: {farm.name} | Municipality: {farm.municipality}"
-        pdf.multi_cell(0, 8, farm_local, ln=True, fill=True)
-
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Administrator:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, farm.administrator, ln=True, fill=True)
-
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Contact Person:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, farm.contactPerson, ln=True, fill=True)
-
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Farm vat:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, farm.vatID, ln=True, fill=True)
-
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Farm Description:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, farm.description, fill=True)
+        display_pdf_parcel_details(pdf, parcel_id, geolocator, token)
         parcel_defined = True
 
     if len(calendar_data.operations) == 1:

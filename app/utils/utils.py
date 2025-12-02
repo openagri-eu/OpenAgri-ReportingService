@@ -215,3 +215,69 @@ def get_pesticide(id: str, token: dict[str, str]):
     pest_url = f'{base_url}{urls["pest"]}{id}/'
     pest = make_get_request(url=pest_url, token=token, params={"format": "json"})
     return pest
+
+
+def display_pdf_parcel_details(pdf: FPDF, parcel_id: str, geolocator: Nominatim, token: str | dict) -> ParcelInfo:
+    parcel_data, farm, identifier = get_parcel_info(
+        parcel_id, token, geolocator, identifier_flag=True
+    )
+    address = parcel_data.address
+
+    pdf.set_font("FreeSerif", "B", 10)
+    pdf.cell(40, 8, "Parcel Location:")
+    pdf.set_font("FreeSerif", "", 10)
+    pdf.multi_cell(0, 8, address, ln=True, fill=True)
+
+    pdf.set_font("FreeSerif", "B", 10)
+    pdf.cell(40, 8, "Parcel Identifier:")
+    pdf.set_font("FreeSerif", "", 10)
+    pdf.multi_cell(0, 8, identifier, ln=True, fill=True)
+
+    pdf.set_font("FreeSerif", "B", 10)
+    pdf.cell(
+        40,
+        8,
+        "Farm Location:",
+    )
+    pdf.set_font("FreeSerif", "", 10)
+    farm_local = f"Name: {farm.name} | Municipality: {farm.municipality}"
+    pdf.multi_cell(0, 8, farm_local, ln=True, fill=True)
+
+    pdf.set_font("FreeSerif", "B", 10)
+    pdf.cell(
+        40,
+        8,
+        "Administrator:",
+    )
+    pdf.set_font("FreeSerif", "", 10)
+    pdf.multi_cell(0, 8, farm.administrator, ln=True, fill=True)
+
+    pdf.set_font("FreeSerif", "B", 10)
+    pdf.cell(
+        40,
+        8,
+        "Contact Person:",
+    )
+    pdf.set_font("FreeSerif", "", 10)
+    pdf.multi_cell(0, 8, farm.contactPerson, ln=True, fill=True)
+
+    pdf.set_font("FreeSerif", "B", 10)
+    pdf.cell(
+        40,
+        8,
+        "Farm vat:",
+    )
+    pdf.set_font("FreeSerif", "", 10)
+    pdf.multi_cell(0, 8, farm.vatID, ln=True, fill=True)
+
+    pdf.set_font("FreeSerif", "B", 10)
+    pdf.cell(
+        40,
+        8,
+        "Farm Description:",
+    )
+    pdf.set_font("FreeSerif", "", 10)
+    pdf.multi_cell(0, 8, farm.description, fill=True)
+    return parcel_data
+
+
