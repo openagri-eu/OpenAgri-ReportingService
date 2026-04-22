@@ -312,7 +312,7 @@ async def generate_field_notebook(
     European Field Notebook (farm diary) requirements:
 
     1. Farm & parcel information (name, VAT, contact, address, satellite map)
-    2. Forecasting models – last 15 days pest risk summary (requires REPORTING_FORECASTING_BASE_URL)
+    2. Forecasting models – last 15 days pest risk summary (TODO when implemented on FC && PDM)
     3. Pest treatment activities (all CropProtectionOperations, chronological)
     4. Fertilization activities (all FertilizationOperations, chronological)
     5. Irrigation activities (all IrrigationOperations, chronological)
