@@ -15,7 +15,7 @@ async def lifespan(fa: FastAPI):
 
 
 app = FastAPI(
-    title="Reporting service", openapi_url="/api/v1/openapi.json"
+    title="Reporting service", openapi_url="/api/v1/openapi.json", lifespan=lifespan
 )
 
 
