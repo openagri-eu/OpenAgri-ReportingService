@@ -1,6 +1,5 @@
 [
   {
-    "@id": "urn:ngsi-ld:CropObservation:obs-temp-001",
     "@type": "Observation",
     "phenomenonTime": "2025-10-10T08:15:00Z",
     "hasStartDatetime": "2025-10-10T08:15:00Z",
@@ -16,7 +15,6 @@
     }
   },
   {
-    "@id": "urn:ngsi-ld:CropObservation:obs-moist-001",
     "@type": "Observation",
     "phenomenonTime": "2025-10-11T09:00:00Z",
     "hasStartDatetime": "2025-10-11T09:00:00Z",
@@ -32,7 +30,6 @@
     }
   },
   {
-    "@id": "urn:ngsi-ld:CropObservation:obs-ph-001",
     "@type": "Observation",
     "phenomenonTime": "2025-10-12T10:00:00Z",
     "hasStartDatetime": "2025-10-12T10:00:00Z",
