@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     }
 
     PDF_DIRECTORY: str = "user_reports/"
+
+    ENABLE_STRESS_TEST_NOTIFICATIONS: bool = False
+    STRESS_TEST_CALLBACK_URL: Optional[str] = None
+
     SQLALCHEMY_DATABASE_URI: Optional[str] = None
 
     @field_validator("SQLALCHEMY_DATABASE_URI", mode="before")

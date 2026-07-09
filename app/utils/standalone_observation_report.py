@@ -5,6 +5,7 @@ import logging
 import os
 from typing import List, Optional
 
+import requests
 from fastapi import HTTPException
 from fpdf.enums import VAlign
 
@@ -206,6 +207,16 @@ def process_standalone_observation_data(
         pdf_dir = f"{settings.PDF_DIRECTORY}{pdf_file_name}"
         os.makedirs(os.path.dirname(f"{pdf_dir}.pdf"), exist_ok=True)
         pdf.output(f"{pdf_dir}.pdf")
+
+        if settings.ENABLE_STRESS_TEST_NOTIFICATIONS and settings.STRESS_TEST_CALLBACK_URL:
+            try:
+                requests.post(
+                    settings.STRESS_TEST_CALLBACK_URL,
+                    json={"uuid": pdf_file_name.split("/")[-1], "status": "ready"},
+                    timeout=5,
+                )
+            except Exception as e:
+                logger.warning(f"Stress test callback failed: {e}")
     except HTTPException:
         raise
     except Exception as e:
