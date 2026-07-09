@@ -10,7 +10,7 @@ from fpdf.enums import VAlign
 
 from core import settings
 from schemas import CropObservation, ManualFarmInfo, ManualParcelInfo
-from utils import EX, add_fonts
+from utils import EX, add_fonts, notify_stress_test_callback
 from utils.satellite_image_get import SatelliteImageException, fetch_wms_image
 
 logging.basicConfig(level=logging.INFO)
@@ -206,6 +206,7 @@ def process_standalone_observation_data(
         pdf_dir = f"{settings.PDF_DIRECTORY}{pdf_file_name}"
         os.makedirs(os.path.dirname(f"{pdf_dir}.pdf"), exist_ok=True)
         pdf.output(f"{pdf_dir}.pdf")
+        notify_stress_test_callback(pdf_file_name)
     except HTTPException:
         raise
     except Exception as e:

@@ -3,6 +3,7 @@ import logging
 import os
 
 import jwt
+import requests
 from fpdf import FPDF
 from pydantic import BaseModel
 
@@ -11,6 +12,25 @@ from utils.json_handler import make_get_request
 from geopy.geocoders import Nominatim
 
 logger = logging.Logger("utils")
+
+
+def notify_stress_test_callback(pdf_file_name: str):
+    """Notify the configured stress test URL that a report's PDF is ready.
+
+    No-op unless ENABLE_STRESS_TEST_NOTIFICATIONS + STRESS_TEST_CALLBACK_URL
+    are set; failures are logged, never raised, so they can't break report
+    generation itself.
+    """
+    if not (settings.ENABLE_STRESS_TEST_NOTIFICATIONS and settings.STRESS_TEST_CALLBACK_URL):
+        return
+    try:
+        requests.post(
+            settings.STRESS_TEST_CALLBACK_URL,
+            json={"uuid": pdf_file_name.split("/")[-1], "status": "ready"},
+            timeout=5,
+        )
+    except Exception as e:
+        logger.warning(f"Stress test callback failed: {e}")
 
 
 def add_fonts(pdf):

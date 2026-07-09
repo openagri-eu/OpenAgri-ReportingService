@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from typing import Union
+
 from fastapi import HTTPException
 
 from core import settings
@@ -17,6 +18,7 @@ from utils import (
     get_parcel_info,
     get_farm_operation_data,
     FarmInfo, display_pdf_parcel_details,
+    notify_stress_test_callback,
 )
 from utils.json_handler import make_get_request
 from geopy.geocoders import Nominatim
@@ -571,6 +573,7 @@ def process_farm_calendar_data(
         pdf_dir = f"{settings.PDF_DIRECTORY}{pdf_file_name}"
         os.makedirs(os.path.dirname(f"{pdf_dir}.pdf"), exist_ok=True)
         pdf.output(f"{pdf_dir}.pdf")
+        notify_stress_test_callback(pdf_file_name)
 
     except Exception as e:
         raise HTTPException(

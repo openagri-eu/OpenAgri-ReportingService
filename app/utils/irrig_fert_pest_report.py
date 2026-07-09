@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from core import settings
 from schemas import IrrigationOperation, FertilizationOperation, CropProtectionOperation
 from utils.satellite_image_get import fetch_wms_image, SatelliteImageException
-from utils import EX, add_fonts, decode_dates_filters, get_parcel_info, display_pdf_parcel_details, FarmInfo
+from utils import EX, add_fonts, decode_dates_filters, get_parcel_info, display_pdf_parcel_details, FarmInfo, notify_stress_test_callback
 from utils.farm_calendar_report import geolocator
 from utils.generate_aggregation_data import (
     generate_total_volume_graph,
@@ -465,3 +465,4 @@ def process_irrigation_fertilization_data(
     pdf_dir = f"{settings.PDF_DIRECTORY}{pdf_file_name}"
     os.makedirs(os.path.dirname(f"{pdf_dir}.pdf"), exist_ok=True)
     pdf.output(f"{pdf_dir}.pdf")
+    notify_stress_test_callback(pdf_file_name)
