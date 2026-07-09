@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from fpdf.fonts import FontFace
 
 from core import settings
-from utils import EX, add_fonts, decode_jwt_token, decode_dates_filters, get_parcel_info, FarmInfo
+from utils import EX, add_fonts, decode_jwt_token, decode_dates_filters, get_parcel_info, FarmInfo, notify_stress_test_callback
 from schemas.animals import *
 from utils.farm_calendar_report import geolocator
 from utils.json_handler import make_get_request
@@ -279,3 +279,4 @@ def process_animal_data(
     pdf_dir = f"{settings.PDF_DIRECTORY}{pdf_file_name}"
     os.makedirs(os.path.dirname(f"{pdf_dir}.pdf"), exist_ok=True)
     anima_pdf.output(f"{pdf_dir}.pdf")
+    notify_stress_test_callback(pdf_file_name)

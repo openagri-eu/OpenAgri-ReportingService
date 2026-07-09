@@ -15,6 +15,7 @@ from utils import (
     decode_dates_filters,
     display_pdf_parcel_details,
     FarmInfo,
+    notify_stress_test_callback,
 )
 from utils.generate_aggregation_data import get_pest_from_obj
 from utils.json_handler import make_get_request
@@ -543,3 +544,5 @@ def process_field_notebook_data(
     pdf_dir = f"{settings.PDF_DIRECTORY}{pdf_file_name}"
     os.makedirs(os.path.dirname(f"{pdf_dir}.pdf"), exist_ok=True)
     pdf.output(f"{pdf_dir}.pdf")
+    
+    notify_stress_test_callback(pdf_file_name)

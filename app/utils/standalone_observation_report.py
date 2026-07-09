@@ -5,13 +5,12 @@ import logging
 import os
 from typing import List, Optional
 
-import requests
 from fastapi import HTTPException
 from fpdf.enums import VAlign
 
 from core import settings
 from schemas import CropObservation, ManualFarmInfo, ManualParcelInfo
-from utils import EX, add_fonts
+from utils import EX, add_fonts, notify_stress_test_callback
 from utils.satellite_image_get import SatelliteImageException, fetch_wms_image
 
 logging.basicConfig(level=logging.INFO)
@@ -207,16 +206,7 @@ def process_standalone_observation_data(
         pdf_dir = f"{settings.PDF_DIRECTORY}{pdf_file_name}"
         os.makedirs(os.path.dirname(f"{pdf_dir}.pdf"), exist_ok=True)
         pdf.output(f"{pdf_dir}.pdf")
-
-        if settings.ENABLE_STRESS_TEST_NOTIFICATIONS and settings.STRESS_TEST_CALLBACK_URL:
-            try:
-                requests.post(
-                    settings.STRESS_TEST_CALLBACK_URL,
-                    json={"uuid": pdf_file_name.split("/")[-1], "status": "ready"},
-                    timeout=5,
-                )
-            except Exception as e:
-                logger.warning(f"Stress test callback failed: {e}")
+        notify_stress_test_callback(pdf_file_name)
     except HTTPException:
         raise
     except Exception as e:
