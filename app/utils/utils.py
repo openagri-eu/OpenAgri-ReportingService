@@ -48,8 +48,9 @@ def add_fonts(pdf):
 
 class EX(FPDF):
     def header(self):
+        image_path = os.path.join(settings.PROJECT_ROOT, "assets", "logo.png")
         self.image(
-            "https://horizon-openagri.eu/wp-content/uploads/2023/12/Logo-Open-Agri-blue-1024x338.png",
+            image_path,
             w=40.0,
             keep_aspect_ratio=True,
             x=160,
