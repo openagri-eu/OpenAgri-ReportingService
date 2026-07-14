@@ -264,26 +264,27 @@ def create_farm_calendar_pdf(
                             for machinery in operation.usesAgriculturalMachinery
                         ]
                     )
-                    agr_mach_id = (
-                        operation.usesAgriculturalMachinery[0]
-                        .get("@id", "N/A:N/A")
-                        .split(":")[-1]
-                    )
-                    agr_resp = make_get_request(
-                        url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS["machines"]}{agr_mach_id}/',
-                        token=token,
-                        params={"format": "json"},
-                    )
-                    if agr_resp:
-                        parcel_id = (
-                            agr_resp.get("hasAgriParcel", {})
+                    if settings.REPORTING_USING_GATEKEEPER:
+                        agr_mach_id = (
+                            operation.usesAgriculturalMachinery[0]
                             .get("@id", "N/A:N/A")
                             .split(":")[-1]
                         )
-                        parcel_data, farm = get_parcel_info(
-                            parcel_id, token, geolocator
+                        agr_resp = make_get_request(
+                            url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS["machines"]}{agr_mach_id}/',
+                            token=token,
+                            params={"format": "json"},
                         )
-                        address = parcel_data.address
+                        if agr_resp:
+                            parcel_id = (
+                                agr_resp.get("hasAgriParcel", {})
+                                .get("@id", "N/A:N/A")
+                                .split(":")[-1]
+                            )
+                            parcel_data, farm = get_parcel_info(
+                                parcel_id, token, geolocator
+                            )
+                            address = parcel_data.address
 
                 row.cell(f"{machinery_ids}")
                 if not parcel_defined:
