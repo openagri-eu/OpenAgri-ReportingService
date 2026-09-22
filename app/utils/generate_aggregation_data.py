@@ -44,6 +44,7 @@ def pesticides_aggregation(
 
 def prepare_df_for_calculations(
     irrigation_reports: List[IrrigationOperation],
+    parcel_area: int,
 ) -> pd.DataFrame:
     data_for_df = []
     for irrig in irrigation_reports:
@@ -53,45 +54,16 @@ def prepare_df_for_calculations(
                 "Dose": irrig.hasAppliedAmount.numericValue
                 if irrig.hasAppliedAmount
                 else 0,
+                "Unit": irrig.hasAppliedAmount.unit if irrig.hasAppliedAmount else "",
             }
         )
     df = pd.DataFrame(data_for_df)
+    df["Total Volume"] = df["Dose"] * parcel_area
     return df
 
 
-def generate_total_volume_graph(df: pd.DataFrame, parcel_area: int) -> io.BytesIO:
-    df["Started Date"] = pd.to_datetime(df["Started Date"], format="%d/%m/%Y")
-    df["Total Volume"] = df["Dose"] * parcel_area
-    df = df.sort_values(by="Started Date")
-    plt.figure(figsize=(14, 7))
-    plt.plot(df["Started Date"], df["Total Volume"], marker="o", color="#8B8000")
-
-    for i, txt in enumerate(df["Total Volume"]):
-        plt.annotate(
-            txt,
-            (df["Started Date"].iloc[i], df["Total Volume"].iloc[i]),
-            textcoords="offset points",
-            xytext=(0, 5),
-            ha="center",
-        )
-
-    plt.title("Total Volume of applied water per irrigation activity", fontsize=16)
-    plt.ylabel("Total Volume (m3)", fontsize=12)
-    plt.xlabel("Date", fontsize=12)
-    plt.grid(True, linestyle="--", alpha=0.6)
-    plt.xticks(rotation=45)
-
-    ax = plt.gca()
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%Y"))
-
-    plt.tight_layout()
-    image_mem = io.BytesIO()
-    plt.savefig(image_mem, format="png")
-    plt.close()
-    return image_mem
-
-
 def generate_amount_per_hectare(df: pd.DataFrame) -> io.BytesIO:
+    unit = next((u for u in df["Unit"] if u), "")
     df["Started Date"] = pd.to_datetime(df["Started Date"], format="%d/%m/%Y")
     plt.figure(figsize=(14, 7))
     plt.plot(df["Started Date"], df["Dose"], marker="o", color="grey")
@@ -106,7 +78,7 @@ def generate_amount_per_hectare(df: pd.DataFrame) -> io.BytesIO:
         )
 
     plt.title("Applied amount of water per hectare", fontsize=16)
-    plt.ylabel("Dose (m3/Ha)", fontsize=12)
+    plt.ylabel(f"Dose ({unit})" if unit else "Dose", fontsize=12)
     plt.xlabel("Date", fontsize=12)
     plt.grid(True, linestyle="--", alpha=0.6)
     plt.xticks(rotation=45)

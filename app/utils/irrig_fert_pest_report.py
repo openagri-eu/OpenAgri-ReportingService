@@ -13,7 +13,6 @@ from utils.satellite_image_get import fetch_wms_image, SatelliteImageException
 from utils import EX, add_fonts, decode_dates_filters, get_parcel_info, display_pdf_parcel_details, FarmInfo, notify_stress_test_callback
 from utils.farm_calendar_report import geolocator
 from utils.generate_aggregation_data import (
-    generate_total_volume_graph,
     generate_amount_per_hectare,
     prepare_df_for_calculations,
     generate_aggregation_table_data,
@@ -325,9 +324,7 @@ def create_pdf_from_operations(
                 if float(parcel_data.area) > 0
                 else 0
             )
-            df_for_calc = prepare_df_for_calculations(operations)
-            total_volume_graph = generate_total_volume_graph(df_for_calc, area_parcel)
-            pdf.ln(1)
+            df_for_calc = prepare_df_for_calculations(operations, area_parcel)
             amount_per_hc_graph = generate_amount_per_hectare(df_for_calc)
             pdf.add_page()
             pdf.set_font("FreeSerif", "B", 15)
@@ -335,11 +332,6 @@ def create_pdf_from_operations(
             pdf.cell(30, 2, "3. Graphs: ", ln=2, align='L')
             pdf.ln(2)
             pdf.set_font("FreeSerif", "", 10)
-            pdf.cell(10, 2, "Graph 1: ", ln=2, align='L')
-            pdf.ln(2)
-            pdf.image(total_volume_graph, type="png", w=180)
-            pdf.cell(10, 2, "Graph 2: ", ln=1, align='L')
-            pdf.ln(2)
             pdf.image(amount_per_hc_graph, type="png", w=180)
 
             dict_average_table = generate_aggregation_table_data(df_for_calc)
