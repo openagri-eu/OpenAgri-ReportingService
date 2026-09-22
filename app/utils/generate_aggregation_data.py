@@ -42,7 +42,28 @@ def pesticides_aggregation(
     return pesticide_sums
 
 
-DEPTH_UNITS = {"mm", "millimeter", "millimetre", "millimeters", "millimetres"}
+# Irrigation depth units: represent an amount per unit area (e.g. "10 mm"
+# applied), so total volume across the parcel needs multiplying by area.
+# Conversion factor is meters per unit.
+DEPTH_UNITS_TO_M = {
+    "mm": 0.001, "millimeter": 0.001, "millimetre": 0.001,
+    "millimeters": 0.001, "millimetres": 0.001,
+    "cm": 0.01, "centimeter": 0.01, "centimetre": 0.01,
+    "centimeters": 0.01, "centimetres": 0.01,
+    "m": 1.0, "meter": 1.0, "metre": 1.0, "meters": 1.0, "metres": 1.0,
+    "in": 0.0254, "inch": 0.0254, "inches": 0.0254,
+}
+
+# Volume units: the applied amount already represents the total volume
+# delivered in that operation (e.g. "10 litres" from a flow meter), so it
+# is not scaled by area. Conversion factor is m3 per unit.
+VOLUME_UNITS_TO_M3 = {
+    "l": 0.001, "liter": 0.001, "litre": 0.001,
+    "liters": 0.001, "litres": 0.001,
+    "m3": 1.0, "m³": 1.0, "cubic meter": 1.0, "cubic metre": 1.0,
+    "cubic meters": 1.0, "cubic metres": 1.0,
+    "gal": 0.00378541, "gallon": 0.00378541, "gallons": 0.00378541,
+}
 
 
 def prepare_df_for_calculations(
@@ -62,14 +83,19 @@ def prepare_df_for_calculations(
         )
     df = pd.DataFrame(data_for_df)
     dose_unit = next((u for u in df["Unit"] if u), "")
+    dose_unit_key = dose_unit.strip().lower()
 
-    if dose_unit.strip().lower() in DEPTH_UNITS:
-        # Dose is an irrigation depth (e.g. mm): 1 mm applied over 1 m2 = 0.001 m3.
-        df["Total Volume"] = (df["Dose"] / 1000.0) * parcel_area_m2
+    if dose_unit_key in DEPTH_UNITS_TO_M:
+        # Depth applied over the parcel: volume = depth(m) * area(m2).
+        df["Total Volume"] = df["Dose"] * DEPTH_UNITS_TO_M[dose_unit_key] * parcel_area_m2
+        total_volume_unit = "m3"
+    elif dose_unit_key in VOLUME_UNITS_TO_M3:
+        # Already a total volume for that operation: just convert to m3.
+        df["Total Volume"] = df["Dose"] * VOLUME_UNITS_TO_M3[dose_unit_key]
         total_volume_unit = "m3"
     else:
-        # Unknown/unsupported unit: no reliable depth->volume conversion exists,
-        # so total volume is left as the raw applied amount (not scaled by area).
+        # Unknown/unsupported unit: no reliable conversion to m3 exists,
+        # so total volume is left as the raw applied amount (not scaled).
         df["Total Volume"] = df["Dose"]
         total_volume_unit = dose_unit
 
