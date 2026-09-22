@@ -42,9 +42,12 @@ def pesticides_aggregation(
     return pesticide_sums
 
 
+DEPTH_UNITS = {"mm", "millimeter", "millimetre", "millimeters", "millimetres"}
+
+
 def prepare_df_for_calculations(
     irrigation_reports: List[IrrigationOperation],
-    parcel_area: int,
+    parcel_area_m2: float,
 ) -> pd.DataFrame:
     data_for_df = []
     for irrig in irrigation_reports:
@@ -58,7 +61,20 @@ def prepare_df_for_calculations(
             }
         )
     df = pd.DataFrame(data_for_df)
-    df["Total Volume"] = df["Dose"] * parcel_area
+    dose_unit = next((u for u in df["Unit"] if u), "")
+
+    if dose_unit.strip().lower() in DEPTH_UNITS:
+        # Dose is an irrigation depth (e.g. mm): 1 mm applied over 1 m2 = 0.001 m3.
+        df["Total Volume"] = (df["Dose"] / 1000.0) * parcel_area_m2
+        total_volume_unit = "m3"
+    else:
+        # Unknown/unsupported unit: no reliable depth->volume conversion exists,
+        # so total volume is left as the raw applied amount (not scaled by area).
+        df["Total Volume"] = df["Dose"]
+        total_volume_unit = dose_unit
+
+    df.attrs["dose_unit"] = dose_unit
+    df.attrs["total_volume_unit"] = total_volume_unit
     return df
 
 

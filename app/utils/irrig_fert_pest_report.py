@@ -319,12 +319,8 @@ def create_pdf_from_operations(
     if operations and parcel_defined:
         if irrigation_flag:
             pdf.ln(4)
-            area_parcel = (
-                int(float(parcel_data.area) / 10_000)
-                if float(parcel_data.area) > 0
-                else 0
-            )
-            df_for_calc = prepare_df_for_calculations(operations, area_parcel)
+            area_parcel_m2 = float(parcel_data.area) if float(parcel_data.area) > 0 else 0.0
+            df_for_calc = prepare_df_for_calculations(operations, area_parcel_m2)
             amount_per_hc_graph = generate_amount_per_hectare(df_for_calc)
             pdf.add_page()
             pdf.set_font("FreeSerif", "B", 15)
@@ -342,11 +338,13 @@ def create_pdf_from_operations(
             pdf.cell(30, 2, "4. Aggregates:", align='L', ln=True)
             pdf.ln(4)
             pdf.set_font("FreeSerif", "B", 10)
+            dose_unit = df_for_calc.attrs.get("dose_unit", "")
+            total_volume_unit = df_for_calc.attrs.get("total_volume_unit", "")
             with pdf.table(text_align="CENTER") as table:
                 row = table.row()
                 row.cell("Data")
-                row.cell("Per hectare (m3)")
-                row.cell("Total volume (m3)")
+                row.cell(f"Per hectare ({dose_unit})" if dose_unit else "Per hectare")
+                row.cell(f"Total volume ({total_volume_unit})" if total_volume_unit else "Total volume")
 
                 pdf.set_font("FreeSerif", "", 9)
                 pdf.set_fill_color(255, 255, 240)
