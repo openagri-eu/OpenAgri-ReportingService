@@ -56,12 +56,13 @@ DEPTH_UNITS_TO_M = {
 
 # Volume units: the applied amount already represents the total volume
 # delivered in that operation (e.g. "10 litres" from a flow meter), so it
-# is not scaled by area and is kept in its original unit (no forced m3
-# conversion - there's no dimensional need for one).
-VOLUME_UNITS = {
-    "l", "liter", "litre", "liters", "litres",
-    "m3", "m³", "cubic meter", "cubic metre", "cubic meters", "cubic metres",
-    "gal", "gallon", "gallons",
+# is not scaled by area. Conversion factor is m3 per unit.
+VOLUME_UNITS_TO_M3 = {
+    "l": 0.001, "liter": 0.001, "litre": 0.001,
+    "liters": 0.001, "litres": 0.001,
+    "m3": 1.0, "m³": 1.0, "cubic meter": 1.0, "cubic metre": 1.0,
+    "cubic meters": 1.0, "cubic metres": 1.0,
+    "gal": 0.00378541, "gallon": 0.00378541, "gallons": 0.00378541,
 }
 
 
@@ -88,11 +89,10 @@ def prepare_df_for_calculations(
         # Depth applied over the parcel: volume = depth(m) * area(m2).
         df["Total Volume"] = df["Dose"] * DEPTH_UNITS_TO_M[dose_unit_key] * parcel_area_m2
         total_volume_unit = "m3"
-    elif dose_unit_key in VOLUME_UNITS:
-        # Already a total volume for that operation: no scaling needed,
-        # keep it in the unit the user entered.
-        df["Total Volume"] = df["Dose"]
-        total_volume_unit = dose_unit
+    elif dose_unit_key in VOLUME_UNITS_TO_M3:
+        # Already a total volume for that operation: just convert to m3.
+        df["Total Volume"] = df["Dose"] * VOLUME_UNITS_TO_M3[dose_unit_key]
+        total_volume_unit = "m3"
     else:
         # Unknown/unsupported unit: no reliable conversion to m3 exists,
         # so total volume is left as the raw applied amount (not scaled).
