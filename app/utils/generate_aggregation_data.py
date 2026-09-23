@@ -66,11 +66,16 @@ def prepare_df_for_calculations(
     df = pd.DataFrame(data_for_df)
     dose_unit = next((u for u in df["Unit"] if u), "")
 
+    area_ha = parcel_area_m2 / 10_000.0
+
     if dose_unit == VOLUME_PER_HECTARE_UNIT:
-        # Rate per hectare: volume = dose(m3/ha) * area(ha).
-        df["Total Volume"] = df["Dose"] * (parcel_area_m2 / 10_000.0)
+        # Already a rate per hectare.
+        df["Per Hectare"] = df["Dose"]
+        df["Total Volume"] = df["Dose"] * area_ha
     else:
-        # Plain m3: already a total volume for that operation, no scaling.
+        # Plain m3, a total volume for that operation: derive the
+        # per-hectare rate by dividing by the parcel area.
+        df["Per Hectare"] = df["Dose"] / area_ha if area_ha > 0 else 0
         df["Total Volume"] = df["Dose"]
 
     df.attrs["dose_unit"] = dose_unit
@@ -79,22 +84,21 @@ def prepare_df_for_calculations(
 
 
 def generate_amount_per_hectare(df: pd.DataFrame) -> io.BytesIO:
-    unit = next((u for u in df["Unit"] if u), "")
     df["Started Date"] = pd.to_datetime(df["Started Date"], format="%d/%m/%Y")
     plt.figure(figsize=(14, 7))
-    plt.plot(df["Started Date"], df["Dose"], marker="o", color="grey")
+    plt.plot(df["Started Date"], df["Per Hectare"], marker="o", color="grey")
 
-    for i, txt in enumerate(df["Dose"]):
+    for i, txt in enumerate(df["Per Hectare"]):
         plt.annotate(
-            txt,
-            (df["Started Date"].iloc[i], df["Dose"].iloc[i]),
+            f"{txt:.2f}",
+            (df["Started Date"].iloc[i], df["Per Hectare"].iloc[i]),
             textcoords="offset points",
             xytext=(0, 5),
             ha="center",
         )
 
     plt.title("Applied amount of water per hectare", fontsize=16)
-    plt.ylabel(f"Dose ({unit})" if unit else "Dose", fontsize=12)
+    plt.ylabel(f"Dose ({VOLUME_PER_HECTARE_UNIT})", fontsize=12)
     plt.xlabel("Date", fontsize=12)
     plt.grid(True, linestyle="--", alpha=0.6)
     plt.xticks(rotation=45)
