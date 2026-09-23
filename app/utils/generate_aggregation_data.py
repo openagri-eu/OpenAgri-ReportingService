@@ -64,6 +64,13 @@ VOLUME_UNITS = {
     "gal", "gallon", "gallons",
 }
 
+# Volume-per-area units (the dashboard's applied-amount unit picker offers
+# this alongside plain "m3"): the dose is already a rate per hectare, so
+# total volume = dose * area in hectares.
+VOLUME_PER_HECTARE_UNITS = {
+    "m3/hectare", "m3/ha", "m³/hectare", "m³/ha", "m3 per hectare",
+}
+
 
 def prepare_df_for_calculations(
     irrigation_reports: List[IrrigationOperation],
@@ -93,6 +100,10 @@ def prepare_df_for_calculations(
         # keep it in the unit the user entered.
         df["Total Volume"] = df["Dose"]
         total_volume_unit = dose_unit
+    elif dose_unit_key in VOLUME_PER_HECTARE_UNITS:
+        # Rate per hectare: volume = dose(m3/ha) * area(ha).
+        df["Total Volume"] = df["Dose"] * (parcel_area_m2 / 10_000.0)
+        total_volume_unit = "m3"
     else:
         # Unknown/unsupported unit: no reliable conversion to m3 exists,
         # so total volume is left as the raw applied amount (not scaled).
