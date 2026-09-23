@@ -78,8 +78,6 @@ def prepare_df_for_calculations(
         df["Per Hectare"] = df["Dose"] / area_ha if area_ha > 0 else 0
         df["Total Volume"] = df["Dose"]
 
-    df.attrs["dose_unit"] = dose_unit
-    df.attrs["total_volume_unit"] = "m3"
     return df
 
 
@@ -115,8 +113,8 @@ def generate_amount_per_hectare(df: pd.DataFrame) -> io.BytesIO:
 
 def generate_aggregation_table_data(df: pd.DataFrame) -> dict:
     return {
-        "Volume of applied water": [df["Dose"].sum(), df["Total Volume"].sum()],
-        "Average dose": [df["Dose"].mean(), df["Total Volume"].mean()],
-        "Maximum Dose": [df["Dose"].max(), df["Total Volume"].max()],
-        "Minimum Dose": [df["Dose"].min(), df["Total Volume"].min()],
+        "Volume of applied water": [df["Per Hectare"].sum(), df["Total Volume"].sum()],
+        "Average dose": [df["Per Hectare"].mean(), df["Total Volume"].mean()],
+        "Maximum Dose": [df["Per Hectare"].max(), df["Total Volume"].max()],
+        "Minimum Dose": [df["Per Hectare"].min(), df["Total Volume"].min()],
     }

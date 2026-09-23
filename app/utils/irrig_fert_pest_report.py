@@ -338,13 +338,11 @@ def create_pdf_from_operations(
             pdf.cell(30, 2, "4. Aggregates:", align='L', ln=True)
             pdf.ln(4)
             pdf.set_font("FreeSerif", "B", 10)
-            dose_unit = df_for_calc.attrs.get("dose_unit", "")
-            total_volume_unit = df_for_calc.attrs.get("total_volume_unit", "")
             with pdf.table(text_align="CENTER") as table:
                 row = table.row()
                 row.cell("Data")
-                row.cell(f"Per hectare ({dose_unit})" if dose_unit else "Per hectare")
-                row.cell(f"Total volume ({total_volume_unit})" if total_volume_unit else "Total volume")
+                row.cell("Per hectare (m3/hectare)")
+                row.cell("Total volume (m3)")
 
                 pdf.set_font("FreeSerif", "", 9)
                 pdf.set_fill_color(255, 255, 240)
