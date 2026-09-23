@@ -43,11 +43,8 @@ def pesticides_aggregation(
 
 
 # The dashboard's applied-amount unit picker for Irrigation Operations
-# offers exactly two choices, so these are the only units we handle.
-VOLUME_UNITS = {"m3", "m³"}
-
-# Volume-per-area: the dose is already a rate per hectare, so total
-# volume = dose * area in hectares.
+# offers exactly these two choices - a rate per hectare, or an already-
+# total volume. There is no other option to handle.
 VOLUME_PER_HECTARE_UNITS = {"m3/hectare", "m3/ha", "m³/hectare", "m³/ha"}
 
 
@@ -73,20 +70,12 @@ def prepare_df_for_calculations(
     if dose_unit_key in VOLUME_PER_HECTARE_UNITS:
         # Rate per hectare: volume = dose(m3/ha) * area(ha).
         df["Total Volume"] = df["Dose"] * (parcel_area_m2 / 10_000.0)
-        total_volume_unit = "m3"
-    elif dose_unit_key in VOLUME_UNITS:
-        # Already a total volume for that operation: no scaling needed.
-        df["Total Volume"] = df["Dose"]
-        total_volume_unit = "m3"
     else:
-        # Unexpected unit (old data, or picker not deployed yet): no
-        # reliable conversion exists, so total volume is left as the raw
-        # applied amount (not scaled), labeled with its real unit.
+        # Plain m3: already a total volume for that operation, no scaling.
         df["Total Volume"] = df["Dose"]
-        total_volume_unit = dose_unit
 
     df.attrs["dose_unit"] = dose_unit
-    df.attrs["total_volume_unit"] = total_volume_unit
+    df.attrs["total_volume_unit"] = "m3"
     return df
 
 
