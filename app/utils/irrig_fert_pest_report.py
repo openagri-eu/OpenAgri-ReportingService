@@ -319,7 +319,8 @@ def create_pdf_from_operations(
     if operations and parcel_defined:
         if irrigation_flag:
             pdf.ln(4)
-            area_parcel_m2 = float(parcel_data.area) if float(parcel_data.area) > 0 else 0.0
+            parcel_area_m2 = float(parcel_data.area)
+            area_parcel_m2 = parcel_area_m2 if parcel_area_m2 > 0 else 0.0
             df_for_calc = prepare_df_for_calculations(operations, area_parcel_m2)
             amount_per_hc_graph = generate_amount_per_hectare(df_for_calc)
             pdf.add_page()

@@ -64,19 +64,15 @@ def prepare_df_for_calculations(
             }
         )
     df = pd.DataFrame(data_for_df)
-    dose_unit = next((u for u in df["Unit"] if u), "")
 
     area_ha = parcel_area_m2 / 10_000.0
+    is_per_hectare = df["Unit"] == VOLUME_PER_HECTARE_UNIT
 
-    if dose_unit == VOLUME_PER_HECTARE_UNIT:
-        # Already a rate per hectare.
-        df["Per Hectare"] = df["Dose"]
-        df["Total Volume"] = df["Dose"] * area_ha
-    else:
-        # Plain m3, a total volume for that operation: derive the
-        # per-hectare rate by dividing by the parcel area.
-        df["Per Hectare"] = df["Dose"] / area_ha if area_ha > 0 else 0
-        df["Total Volume"] = df["Dose"]
+    # Each operation's own unit decides its row - an irrigation history can
+    # mix "m3" and "m3/hectare" entries, so this can't be sampled once.
+    per_hectare_from_total = df["Dose"] / area_ha if area_ha > 0 else 0
+    df["Per Hectare"] = df["Dose"].where(is_per_hectare, per_hectare_from_total)
+    df["Total Volume"] = (df["Dose"] * area_ha).where(is_per_hectare, df["Dose"])
 
     return df
 
