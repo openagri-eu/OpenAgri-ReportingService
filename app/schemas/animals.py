@@ -40,6 +40,7 @@ class AnimalActivity(BaseModel):
 
     type: str = Field(alias="@type", default="AnimalActivity")
     id: Optional[str] = Field(alias="@id", default=None)
+    is_lactating: bool = False
     activityType: Optional[dict] = None
     title: Optional[str] = ""
     details: Optional[str] = ""

@@ -35,15 +35,27 @@ def _fetch_animal_activities(animal_id: str, token: dict[str, str], params: dict
     These are the FarmCalendar records logged against an animal (there is no
     "Observation" resource linked to animals - Observations only relate to
     parcels). Returns [] on any failure.
+
+    Each raw record is tagged with which endpoint it came from (is_lactating),
+    since FarmCalendar's serialized "@type" is always "FarmCalendarActivity"
+    for both resources - it can't be used to tell them apart after the fact,
+    and a lactating record without e.g. milk yield recorded that day would
+    otherwise be misclassified by checking field presence.
     """
     if not animal_id:
         return []
     activity_params = {**params, "animal": animal_id}
     results = []
-    for url_key in ("animal_activities", "animal_lactating_activities"):
+    for url_key, is_lactating in (
+        ("animal_activities", False),
+        ("animal_lactating_activities", True),
+    ):
         url = f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS[url_key]}'
         result = make_get_request(url=url, token=token, params=activity_params)
         if isinstance(result, list):
+            for item in result:
+                if isinstance(item, dict):
+                    item["is_lactating"] = is_lactating
             results.extend(result)
     return results
 
@@ -239,8 +251,8 @@ def _render_milk_metrics_table(pdf: EX, activities: List[AnimalActivity]):
 
 
 def _render_animal_activities(pdf: EX, activities: List[AnimalActivity], machine_names: dict, parcel_identifiers: dict):
-    lactating = [a for a in activities if a.hasMilkYield is not None]
-    regular = [a for a in activities if a.hasMilkYield is None]
+    lactating = [a for a in activities if a.is_lactating]
+    regular = [a for a in activities if not a.is_lactating]
     title_by_id = {a.id: a.title for a in activities if a.id and a.title}
 
     pdf.set_font("FreeSerif", "B", 11)
@@ -522,13 +534,13 @@ def process_animal_data(
                 farm_animal_id if farm_animal_id else an.id.split(":")[-1] if an.id else None
             )
             raw_activities = _fetch_animal_activities(raw_animal_id, token, activity_params)
-            try:
-                animal_activities_by_animal[an.id] = [
-                    AnimalActivity.model_validate(item) for item in raw_activities
-                ]
-            except Exception as e:
-                logger.error(f"Error parsing animal activities for animal {an.id}: {e}")
-                animal_activities_by_animal[an.id] = []
+            parsed_activities = []
+            for item in raw_activities:
+                try:
+                    parsed_activities.append(AnimalActivity.model_validate(item))
+                except Exception as e:
+                    logger.error(f"Error parsing an animal activity for animal {an.id}: {e}")
+            animal_activities_by_animal[an.id] = parsed_activities
 
     machine_names = _collect_machine_names(animal_activities_by_animal, token)
     parcel_identifiers = _collect_parcel_identifiers(animal_activities_by_animal, token)
