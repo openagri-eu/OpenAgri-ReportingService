@@ -113,6 +113,18 @@ def _collect_parcel_identifiers(animal_activities_by_animal: dict, token: dict[s
     return parcel_identifiers
 
 
+def _date_range_cell(start, end) -> str:
+    if not start:
+        return "—"
+    start_str = start.strftime("%d/%m/%Y")
+    if not end:
+        return start_str
+    end_str = end.strftime("%d/%m/%Y")
+    if start_str == end_str:
+        return f"{start_str} ({start.strftime('%H:%M')}-{end.strftime('%H:%M')})"
+    return f"{start_str} - {end_str}"
+
+
 def _parcel_cell(ref: Optional[dict], parcel_identifiers: dict) -> str:
     ref_id = (ref or {}).get("@id") or ""
     if not ref_id:
@@ -153,8 +165,7 @@ def _render_activities_table(pdf: EX, activities: List[AnimalActivity], title_by
     pdf.set_font("FreeSerif", "B", 8)
     with pdf.table(text_align="CENTER", padding=0.5) as table:
         row = table.row()
-        row.cell("Start Date")
-        row.cell("End Date")
+        row.cell("Date")
         row.cell("Title")
         row.cell("Details")
         row.cell("Parcel")
@@ -164,8 +175,7 @@ def _render_activities_table(pdf: EX, activities: List[AnimalActivity], title_by
         pdf.set_font("FreeSerif", "", 8)
         for act in activities:
             row = table.row()
-            row.cell(act.hasStartDatetime.strftime("%d/%m/%Y") if act.hasStartDatetime else "—")
-            row.cell(act.hasEndDatetime.strftime("%d/%m/%Y") if act.hasEndDatetime else "—")
+            row.cell(_date_range_cell(act.hasStartDatetime, act.hasEndDatetime))
             row.cell(act.title or "—")
             row.cell(act.details or "—")
             row.cell(_parcel_cell(act.hasAgriParcel, parcel_identifiers))
