@@ -83,6 +83,8 @@ def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
     pdf.set_x(x_start)
     info = pdf.image(image_file, type="png", w=100)
 
+    original_draw_color = pdf.draw_color
+    original_line_width = pdf.line_width
     pdf.set_draw_color(255, 40, 40)
     pdf.set_line_width(0.6)
     for ring in rings:
@@ -95,7 +97,8 @@ def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
             ))
         for (x1, y1), (x2, y2) in zip(points, points[1:]):
             pdf.line(x1, y1, x2, y2)
-    pdf.set_draw_color(0, 0, 0)
+    pdf.set_draw_color(original_draw_color)
+    pdf.set_line_width(original_line_width)
     return True
 
 
