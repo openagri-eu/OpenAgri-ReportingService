@@ -52,12 +52,31 @@ def parse_irrig_fert_operations(
         )
 
 
-def _place_centered_parcel_image(pdf: EX, image_bytes: bytes):
-    """Place a 100mm-wide parcel image centered on the page. Returns (info, x_start)."""
+def _place_centered_parcel_image(
+    pdf: EX, image_bytes: bytes, aspect: float | None = None,
+    max_width: float = 100, max_height: float = 140,
+):
+    """
+    Place a parcel image centered on the page, up to max_width wide.
+
+    aspect (pixel_width / pixel_height), when known, caps the render to
+    max_height too - a long, narrow parcel produces a bbox aspect ratio far
+    from the WMS satellite fallback's fixed near-square crop, and rendering
+    it at a fixed 100mm width with no height cap could overflow the page.
+    When aspect is unbounded that tall, width is reduced instead so the
+    image still fits, rather than letting fpdf2 auto-scale height freely.
+
+    Returns (info, x_start).
+    """
     pdf.ln(2)
-    x_start = (pdf.w - 100) / 2
+    w, h = max_width, None
+    if aspect and max_width / aspect > max_height:
+        h = max_height
+        w = max_height * aspect
+    x_start = (pdf.w - w) / 2
     pdf.set_x(x_start)
-    info = pdf.image(io.BytesIO(image_bytes), type="png", w=100)
+    image_file = io.BytesIO(image_bytes)
+    info = pdf.image(image_file, type="png", w=w, h=h) if h else pdf.image(image_file, type="png", w=w)
     return info, x_start
 
 
@@ -88,7 +107,7 @@ def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
         logger.info(f"Parcel geometry image unavailable, falling back: {e}")
         return False
 
-    info, x_start = _place_centered_parcel_image(pdf, image_bytes)
+    info, x_start = _place_centered_parcel_image(pdf, image_bytes, aspect=px_w / px_h)
     # pdf.image() may trigger fpdf2's own auto-page-break internally (when y
     # isn't given explicitly and the image doesn't fit in the remaining
     # space), which moves to a new page before drawing - so the image's
@@ -100,24 +119,28 @@ def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
     # (e.g. a pathological ring) should not fall back to drawing a second,
     # different image on top - just skip the boundary overlay and keep the
     # map.
+    original_draw_color = pdf.draw_color
+    original_line_width = pdf.line_width
     try:
-        original_draw_color = pdf.draw_color
-        original_line_width = pdf.line_width
         pdf.set_draw_color(255, 40, 40)
         pdf.set_line_width(0.6)
         for ring in rings:
             points = []
-            for lon, lat in ring:
+            for point in ring:
+                # WKT can carry a Z (elevation) coordinate - POLYGON Z rings
+                # yield 3-tuples from shapely; only lon/lat matter here.
+                lon, lat = point[0], point[1]
                 px, py = lonlat_to_pixel_in_crop(lon, lat, zoom, origin_x, origin_y)
                 points.append((
                     x_start + (px / px_w) * info.rendered_width,
                     y_start + (py / px_h) * info.rendered_height,
                 ))
             pdf.polygon(points, style="D")
-        pdf.set_draw_color(original_draw_color)
-        pdf.set_line_width(original_line_width)
     except Exception as e:
         logger.error(f"Error drawing parcel boundary overlay, map image kept without it: {e}")
+    finally:
+        pdf.set_draw_color(original_draw_color)
+        pdf.set_line_width(original_line_width)
     return True
 
 
