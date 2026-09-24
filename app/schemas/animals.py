@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from schemas.compost import HasResult
@@ -47,6 +47,9 @@ class AnimalActivity(BaseModel):
     hasEndDatetime: Optional[datetime] = None
     responsibleAgent: Optional[str] = None
     hasAnimal: Optional[dict] = None
+    hasAgriParcel: Optional[dict] = None
+    usesAgriculturalMachinery: List[dict] = []
+    isPartOfActivity: Optional[dict] = None
 
     hasDaysInMilk: Optional[str] = None
     hasLactationNumber: Optional[str] = None

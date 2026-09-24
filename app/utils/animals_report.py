@@ -55,8 +55,20 @@ def _hr_cell(hr) -> str:
     return f"{hr.hasValue}{unit}"
 
 
+def _urn_ref_cell(ref: Optional[dict]) -> str:
+    ref_id = (ref or {}).get("@id") or ""
+    return ref_id.split(":")[-1] if ref_id else "—"
+
+
+def _machinery_cell(machinery: List[dict]) -> str:
+    if not machinery:
+        return "—"
+    names = [_urn_ref_cell(m) for m in machinery]
+    return ", ".join(names)
+
+
 def _render_activities_table(pdf: EX, activities: List[AnimalActivity]):
-    """Plain AnimalActivity entries (no milking data)."""
+    """Plain AnimalActivity entries (no milking data) - every field the user can fill in the Register Activity form."""
     if not activities:
         pdf.set_font("FreeSerif", "", 10)
         pdf.cell(0, 8, "No animal activities recorded for this animal.", ln=True)
@@ -67,20 +79,28 @@ def _render_activities_table(pdf: EX, activities: List[AnimalActivity]):
     except Exception:
         pass
 
-    pdf.set_font("FreeSerif", "B", 9)
+    pdf.set_font("FreeSerif", "B", 8)
     with pdf.table(text_align="CENTER", padding=0.5) as table:
         row = table.row()
-        row.cell("Date")
+        row.cell("Start Date")
+        row.cell("End Date")
         row.cell("Title")
         row.cell("Details")
+        row.cell("Parcel")
+        row.cell("Machinery")
         row.cell("Responsible Agent")
-        pdf.set_font("FreeSerif", "", 9)
+        row.cell("Part Of")
+        pdf.set_font("FreeSerif", "", 8)
         for act in activities:
             row = table.row()
             row.cell(act.hasStartDatetime.strftime("%d/%m/%Y") if act.hasStartDatetime else "—")
+            row.cell(act.hasEndDatetime.strftime("%d/%m/%Y") if act.hasEndDatetime else "—")
             row.cell(act.title or "—")
             row.cell(act.details or "—")
+            row.cell(_urn_ref_cell(act.hasAgriParcel))
+            row.cell(_machinery_cell(act.usesAgriculturalMachinery))
             row.cell(act.responsibleAgent or "—")
+            row.cell(_urn_ref_cell(act.isPartOfActivity))
 
 
 def _render_milk_recording_table(pdf: EX, activities: List[AnimalActivity]):
