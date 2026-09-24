@@ -221,7 +221,7 @@ def _render_milk_metrics_table(pdf: EX, activities: List[AnimalActivity]):
         pdf.set_font("FreeSerif", "", 8)
         for act in activities:
             row = table.row()
-            row.cell(act.hasStartDatetime.strftime("%d/%m/%Y") if act.hasStartDatetime else "—")
+            row.cell(_date_range_cell(act.hasStartDatetime, act.hasEndDatetime))
             row.cell(act.hasDaysInMilk or "—")
             row.cell(act.hasLactationNumber or "—")
             row.cell(act.hasControl or "—")
