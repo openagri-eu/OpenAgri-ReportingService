@@ -52,6 +52,15 @@ def parse_irrig_fert_operations(
         )
 
 
+def _place_centered_parcel_image(pdf: EX, image_bytes: bytes):
+    """Place a 100mm-wide parcel image centered on the page. Returns (info, x_start)."""
+    pdf.ln(2)
+    x_start = (pdf.w - 100) / 2
+    pdf.set_x(x_start)
+    info = pdf.image(io.BytesIO(image_bytes), type="png", w=100)
+    return info, x_start
+
+
 def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
     """
     Render an OSM map image (same tile source as the dashboard's parcel edit
@@ -79,11 +88,7 @@ def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
         logger.info(f"Parcel geometry image unavailable, falling back: {e}")
         return False
 
-    image_file = io.BytesIO(image_bytes)
-    pdf.ln(2)
-    x_start = (pdf.w - 100) / 2
-    pdf.set_x(x_start)
-    info = pdf.image(image_file, type="png", w=100)
+    info, x_start = _place_centered_parcel_image(pdf, image_bytes)
     # pdf.image() may trigger fpdf2's own auto-page-break internally (when y
     # isn't given explicitly and the image doesn't fit in the remaining
     # space), which moves to a new page before drawing - so the image's
@@ -108,8 +113,7 @@ def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
                     x_start + (px / px_w) * info.rendered_width,
                     y_start + (py / px_h) * info.rendered_height,
                 ))
-            for (x1, y1), (x2, y2) in zip(points, points[1:]):
-                pdf.line(x1, y1, x2, y2)
+            pdf.polygon(points, style="D")
         pdf.set_draw_color(original_draw_color)
         pdf.set_line_width(original_line_width)
     except Exception as e:
@@ -194,11 +198,7 @@ def create_pdf_from_operations(
             if parcel_data.long != 0 and parcel_data.lat != 0:
                 try:
                     image_bytes = fetch_wms_image(parcel_data.lat, parcel_data.long)
-                    image_file = io.BytesIO(image_bytes)
-                    pdf.ln(2)
-                    x_start = (pdf.w - 100) / 2
-                    pdf.set_x(x_start)
-                    pdf.image(image_file, type="png", w=100)
+                    _place_centered_parcel_image(pdf, image_bytes)
                 except SatelliteImageException:
                     logger.info("Satellite image issue happened, continue without image.")
         parcel_defined = True
