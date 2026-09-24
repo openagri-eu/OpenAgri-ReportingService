@@ -48,31 +48,15 @@ def _fetch_animal_activities(animal_id: str, token: dict[str, str], params: dict
     return results
 
 
-def _format_lactating_metrics(activity: AnimalActivity) -> str:
-    metrics = []
-
-    def add(label: str, hr):
-        if hr and hr.hasValue not in (None, ""):
-            unit = f" {hr.unit}" if hr.unit else ""
-            metrics.append(f"{label}: {hr.hasValue}{unit}")
-
-    add("Milk Yield", activity.hasMilkYield)
-    add("Total Milk Yield", activity.hasTotalMilkYield)
-    add("Fat", activity.hasFat)
-    add("Protein", activity.hasProtein)
-    add("RCS", activity.hasRCS)
-    add("Urea", activity.hasUrea)
-    add("Dry Matter", activity.hasDryMatter)
-    if activity.hasDaysInMilk:
-        metrics.append(f"Days in Milk: {activity.hasDaysInMilk}")
-    if activity.hasLactationNumber:
-        metrics.append(f"Lactation #: {activity.hasLactationNumber}")
-    if activity.hasControl:
-        metrics.append(f"Control: {activity.hasControl}")
-    return " | ".join(metrics) if metrics else "—"
+def _hr_cell(hr) -> str:
+    if not hr or hr.hasValue in (None, ""):
+        return "—"
+    unit = f" {hr.unit}" if hr.unit else ""
+    return f"{hr.hasValue}{unit}"
 
 
-def _render_animal_activities_table(pdf: EX, activities: List[AnimalActivity]):
+def _render_activities_table(pdf: EX, activities: List[AnimalActivity]):
+    """Plain AnimalActivity entries (no milking data)."""
     if not activities:
         pdf.set_font("FreeSerif", "", 10)
         pdf.cell(0, 8, "No animal activities recorded for this animal.", ln=True)
@@ -87,20 +71,74 @@ def _render_animal_activities_table(pdf: EX, activities: List[AnimalActivity]):
     with pdf.table(text_align="CENTER", padding=0.5) as table:
         row = table.row()
         row.cell("Date")
-        row.cell("Type")
         row.cell("Title")
         row.cell("Details")
         row.cell("Responsible Agent")
-        row.cell("Metrics")
         pdf.set_font("FreeSerif", "", 9)
         for act in activities:
             row = table.row()
             row.cell(act.hasStartDatetime.strftime("%d/%m/%Y") if act.hasStartDatetime else "—")
-            row.cell("Lactating" if act.hasMilkYield else "Activity")
             row.cell(act.title or "—")
             row.cell(act.details or "—")
             row.cell(act.responsibleAgent or "—")
-            row.cell(_format_lactating_metrics(act))
+
+
+def _render_milk_recording_table(pdf: EX, activities: List[AnimalActivity]):
+    """AnimalLactatingActivity entries, one column per metric."""
+    if not activities:
+        pdf.set_font("FreeSerif", "", 10)
+        pdf.cell(0, 8, "No milk recording data for this animal.", ln=True)
+        return
+
+    try:
+        activities = sorted(activities, key=lambda a: a.hasStartDatetime or datetime.min)
+    except Exception:
+        pass
+
+    pdf.set_font("FreeSerif", "B", 8)
+    with pdf.table(text_align="CENTER", padding=0.5) as table:
+        row = table.row()
+        row.cell("Date")
+        row.cell("Days in Milk")
+        row.cell("Lactation #")
+        row.cell("Control")
+        row.cell("Milk Yield")
+        row.cell("Total Yield")
+        row.cell("Fat")
+        row.cell("Protein")
+        row.cell("RCS")
+        row.cell("Urea")
+        row.cell("Dry Matter")
+        row.cell("Responsible Agent")
+        pdf.set_font("FreeSerif", "", 8)
+        for act in activities:
+            row = table.row()
+            row.cell(act.hasStartDatetime.strftime("%d/%m/%Y") if act.hasStartDatetime else "—")
+            row.cell(act.hasDaysInMilk or "—")
+            row.cell(act.hasLactationNumber or "—")
+            row.cell(act.hasControl or "—")
+            row.cell(_hr_cell(act.hasMilkYield))
+            row.cell(_hr_cell(act.hasTotalMilkYield))
+            row.cell(_hr_cell(act.hasFat))
+            row.cell(_hr_cell(act.hasProtein))
+            row.cell(_hr_cell(act.hasRCS))
+            row.cell(_hr_cell(act.hasUrea))
+            row.cell(_hr_cell(act.hasDryMatter))
+            row.cell(act.responsibleAgent or "—")
+
+
+def _render_animal_activities(pdf: EX, activities: List[AnimalActivity]):
+    lactating = [a for a in activities if a.hasMilkYield is not None]
+    regular = [a for a in activities if a.hasMilkYield is None]
+
+    pdf.set_font("FreeSerif", "B", 11)
+    pdf.cell(0, 8, "Activities", ln=True)
+    _render_activities_table(pdf, regular)
+
+    pdf.ln(3)
+    pdf.set_font("FreeSerif", "B", 11)
+    pdf.cell(0, 8, "Milk Recording", ln=True)
+    _render_milk_recording_table(pdf, lactating)
 
 
 def create_pdf_from_animals(
@@ -246,7 +284,7 @@ def create_pdf_from_animals(
         pdf.ln(4)
         pdf.set_font("FreeSerif", "B", 12)
         pdf.cell(0, 8, "Animal Activities:", ln=True)
-        _render_animal_activities_table(pdf, animal_activities_by_animal.get(an.id, []))
+        _render_animal_activities(pdf, animal_activities_by_animal.get(an.id, []))
 
     if len(animals) > 1:
         animals.sort(key=lambda x: x.dateCreated)
@@ -307,7 +345,7 @@ def create_pdf_from_animals(
         for animal in animals:
             pdf.set_font("FreeSerif", "B", 11)
             pdf.cell(0, 8, f"{animal.name or animal.id}:", ln=True)
-            _render_animal_activities_table(pdf, animal_activities_by_animal.get(animal.id, []))
+            _render_animal_activities(pdf, animal_activities_by_animal.get(animal.id, []))
             pdf.ln(3)
 
     return pdf
