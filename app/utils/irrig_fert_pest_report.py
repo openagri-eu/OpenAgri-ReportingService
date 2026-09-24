@@ -10,6 +10,8 @@ from fastapi import HTTPException
 from core import settings
 from schemas import IrrigationOperation, FertilizationOperation, CropProtectionOperation
 from utils.satellite_image_get import fetch_wms_image, SatelliteImageException
+from utils.osm_static_map import fetch_osm_map_for_bbox, lonlat_to_pixel_in_crop, OSMMapException
+from utils.parcel_geometry import parse_wkt_rings, compute_padded_bbox, ParcelGeometryException
 from utils import EX, add_fonts, decode_dates_filters, get_parcel_info, display_pdf_parcel_details, FarmInfo, notify_stress_test_callback
 from utils.farm_calendar_report import geolocator
 from utils.generate_aggregation_data import (
@@ -48,6 +50,53 @@ def parse_irrig_fert_operations(
             status_code=400,
             detail=f"Reporting service failed during PDF generation. File is not correct JSON. {e}",
         )
+
+
+def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
+    """
+    Render an OSM map image (same tile source as the dashboard's parcel edit
+    map) sized to the parcel's real geometry extent, with the parcel
+    boundary drawn as a line overlay on top. Returns True on success, False
+    if there is no usable geometry or the fetch/parse fails (caller should
+    fall back to the generic point-centered satellite image).
+
+    OSM raster tiles are used instead of the WMS satellite layer for this
+    close a zoom: EOX's Sentinel-2 imagery is ~10m/pixel, so a single parcel
+    (typically a few hundred meters across) only has a few dozen real source
+    pixels - the rest is heavy upscaling/blur. OSM tiles are pre-rendered
+    vector data, so they stay sharp at any zoom level.
+    """
+    if not parcel_data.geometry_wkt:
+        return False
+    try:
+        rings = parse_wkt_rings(parcel_data.geometry_wkt)
+        bbox = compute_padded_bbox(rings)
+        image_bytes, zoom, origin_x, origin_y, px_w, px_h = fetch_osm_map_for_bbox(*bbox)
+    except (ParcelGeometryException, OSMMapException) as e:
+        logger.info(f"Parcel geometry image unavailable, falling back: {e}")
+        return False
+
+    image_file = io.BytesIO(image_bytes)
+    pdf.ln(2)
+    x_start = (pdf.w - 100) / 2
+    y_start = pdf.get_y()
+    pdf.set_x(x_start)
+    info = pdf.image(image_file, type="png", w=100)
+
+    pdf.set_draw_color(255, 40, 40)
+    pdf.set_line_width(0.6)
+    for ring in rings:
+        points = []
+        for lon, lat in ring:
+            px, py = lonlat_to_pixel_in_crop(lon, lat, zoom, origin_x, origin_y)
+            points.append((
+                x_start + (px / px_w) * info.rendered_width,
+                y_start + (py / px_h) * info.rendered_height,
+            ))
+        for (x1, y1), (x2, y2) in zip(points, points[1:]):
+            pdf.line(x1, y1, x2, y2)
+    pdf.set_draw_color(0, 0, 0)
+    return True
 
 
 def create_pdf_from_operations(
@@ -123,16 +172,17 @@ def create_pdf_from_operations(
 
     if parcel_id:
         parcel_data = display_pdf_parcel_details(pdf, parcel_id, geolocator, token)
-        if parcel_data.long != 0 and parcel_data.lat != 0:
-            try:
-                image_bytes = fetch_wms_image(parcel_data.lat, parcel_data.long)
-                image_file = io.BytesIO(image_bytes)
-                pdf.ln(2)
-                x_start = (pdf.w - 100) / 2
-                pdf.set_x(x_start)
-                pdf.image(image_file, type="png", w=100)
-            except SatelliteImageException:
-                logger.info("Satellite image issue happened, continue without image.")
+        if not _render_parcel_geometry_image(pdf, parcel_data):
+            if parcel_data.long != 0 and parcel_data.lat != 0:
+                try:
+                    image_bytes = fetch_wms_image(parcel_data.lat, parcel_data.long)
+                    image_file = io.BytesIO(image_bytes)
+                    pdf.ln(2)
+                    x_start = (pdf.w - 100) / 2
+                    pdf.set_x(x_start)
+                    pdf.image(image_file, type="png", w=100)
+                except SatelliteImageException:
+                    logger.info("Satellite image issue happened, continue without image.")
         parcel_defined = True
 
     if len(operations) == 1:
