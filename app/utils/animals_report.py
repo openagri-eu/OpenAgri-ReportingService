@@ -170,10 +170,7 @@ def _render_activities_table(
         pass
 
     pdf.set_font("FreeSerif", "B", 8)
-    with pdf.table(
-        text_align="CENTER", padding=0.5,
-        col_widths=(1.6, 1.18, 1.18, 1.18, 1.18, 1.18, 1.5),
-    ) as table:
+    with pdf.table(text_align="CENTER", padding=0.5) as table:
         row = table.row()
         row.cell("Date")
         row.cell("Title")
