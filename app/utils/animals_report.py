@@ -172,7 +172,7 @@ def _render_activities_table(
     pdf.set_font("FreeSerif", "B", 8)
     with pdf.table(
         text_align="CENTER", padding=0.5,
-        col_widths=(1.4, 1.5, 1.8, 0.9, 1.1, 1.1, 1.2),
+        col_widths=(1.6, 1.18, 1.18, 1.18, 1.18, 1.18, 1.5),
     ) as table:
         row = table.row()
         row.cell("Date")
@@ -209,7 +209,7 @@ def _render_milk_metrics_table(pdf: EX, activities: List[AnimalActivity]):
     pdf.set_font("FreeSerif", "B", 8)
     with pdf.table(
         text_align="CENTER", padding=0.5,
-        col_widths=(1.6, 0.9, 0.9, 0.9, 1.1, 1.1, 0.8, 0.9, 1.0, 0.9, 1.0, 1.5),
+        col_widths=(1.6, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 1.5),
     ) as table:
         row = table.row()
         row.cell("Date")
