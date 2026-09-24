@@ -36,10 +36,16 @@ def _fetch_animal_activities(animal_id: str, token: dict[str, str], params: dict
     Returns [] on any failure.
 
     AnimalLactatingActivity is a subclass of AnimalActivity (Django multi-table
-    inheritance), so every lactating record also comes back from the plain
-    /AnimalActivities/ endpoint (without its milk fields). Fetch lactating
-    second and let it overwrite by id, so the richer version wins instead of
-    the same activity appearing twice.
+    inheritance, sharing the same primary key as its parent row), so every
+    lactating record also comes back from the plain /AnimalActivities/
+    endpoint (without its milk fields). Its "@id" there is built from the
+    instance's class name at serialization time though, so the two
+    representations of the same row get DIFFERENT "@id" strings
+    ("...:AnimalActivity:<uuid>" vs "...:AnimalLactatingActivity:<uuid>") even
+    though the trailing <uuid> (the actual pk) is identical - dedupe on that
+    raw id, not the full "@id" string. Fetch lactating second and let it
+    overwrite, so the richer version wins instead of the same activity
+    appearing twice.
     """
     if not animal_id:
         return []
@@ -57,7 +63,7 @@ def _fetch_animal_activities(animal_id: str, token: dict[str, str], params: dict
             if not isinstance(item, dict):
                 continue
             item["is_lactating"] = is_lactating
-            item_id = item.get("@id")
+            item_id = (item.get("@id") or "").split(":")[-1]
             if item_id:
                 by_id[item_id] = item
             else:
