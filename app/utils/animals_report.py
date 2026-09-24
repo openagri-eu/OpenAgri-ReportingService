@@ -9,7 +9,6 @@ from fpdf.fonts import FontFace
 from core import settings
 from utils import EX, add_fonts, decode_jwt_token, decode_dates_filters, get_parcel_info, FarmInfo, notify_stress_test_callback
 from schemas.animals import *
-from schemas.compost import CropObservation
 from utils.farm_calendar_report import geolocator
 from utils.json_handler import make_get_request
 
@@ -30,29 +29,57 @@ def parse_animal_data(data: Union[List[dict], str]) -> Optional[List[Animal]]:
         return None
 
 
-def _fetch_animal_observations(animal_id: str, token: dict[str, str], params: dict) -> list:
-    """Fetch Observations nested under a FarmAnimal record. Returns [] on any failure."""
+def _fetch_animal_activities(animal_id: str, token: dict[str, str], params: dict) -> list:
+    """
+    Fetch AnimalActivity and AnimalLactatingActivity records for a FarmAnimal.
+    These are the FarmCalendar records logged against an animal (there is no
+    "Observation" resource linked to animals - Observations only relate to
+    parcels). Returns [] on any failure.
+    """
     if not animal_id:
         return []
-    obs_url = (
-        f'{settings.REPORTING_FARMCALENDAR_BASE_URL}'
-        f'{settings.REPORTING_FARMCALENDAR_URLS["animals"]}{animal_id}'
-        f'{settings.REPORTING_FARMCALENDAR_URLS["observations"]}'
-    )
-    result = make_get_request(url=obs_url, token=token, params=params)
-    return result if isinstance(result, list) else []
+    activity_params = {**params, "animal": animal_id}
+    results = []
+    for url_key in ("animal_activities", "animal_lactating_activities"):
+        url = f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS[url_key]}'
+        result = make_get_request(url=url, token=token, params=activity_params)
+        if isinstance(result, list):
+            results.extend(result)
+    return results
 
 
-def _render_observations_table(pdf: EX, observations: List[CropObservation]):
-    if not observations:
+def _format_lactating_metrics(activity: AnimalActivity) -> str:
+    metrics = []
+
+    def add(label: str, hr):
+        if hr and hr.hasValue not in (None, ""):
+            unit = f" {hr.unit}" if hr.unit else ""
+            metrics.append(f"{label}: {hr.hasValue}{unit}")
+
+    add("Milk Yield", activity.hasMilkYield)
+    add("Total Milk Yield", activity.hasTotalMilkYield)
+    add("Fat", activity.hasFat)
+    add("Protein", activity.hasProtein)
+    add("RCS", activity.hasRCS)
+    add("Urea", activity.hasUrea)
+    add("Dry Matter", activity.hasDryMatter)
+    if activity.hasDaysInMilk:
+        metrics.append(f"Days in Milk: {activity.hasDaysInMilk}")
+    if activity.hasLactationNumber:
+        metrics.append(f"Lactation #: {activity.hasLactationNumber}")
+    if activity.hasControl:
+        metrics.append(f"Control: {activity.hasControl}")
+    return " | ".join(metrics) if metrics else "—"
+
+
+def _render_animal_activities_table(pdf: EX, activities: List[AnimalActivity]):
+    if not activities:
         pdf.set_font("FreeSerif", "", 10)
-        pdf.cell(0, 8, "No observations recorded for this animal.", ln=True)
+        pdf.cell(0, 8, "No animal activities recorded for this animal.", ln=True)
         return
 
     try:
-        observations = sorted(
-            observations, key=lambda o: o.hasStartDatetime or o.phenomenonTime or datetime.min
-        )
+        activities = sorted(activities, key=lambda a: a.hasStartDatetime or datetime.min)
     except Exception:
         pass
 
@@ -60,37 +87,31 @@ def _render_observations_table(pdf: EX, observations: List[CropObservation]):
     with pdf.table(text_align="CENTER", padding=0.5) as table:
         row = table.row()
         row.cell("Date")
+        row.cell("Type")
         row.cell("Title")
-        row.cell("Observed Property")
-        row.cell("Value")
-        row.cell("Unit")
         row.cell("Details")
+        row.cell("Responsible Agent")
+        row.cell("Metrics")
         pdf.set_font("FreeSerif", "", 9)
-        for obs in observations:
+        for act in activities:
             row = table.row()
-            date_val = obs.hasStartDatetime or obs.phenomenonTime
-            row.cell(date_val.strftime("%d/%m/%Y") if date_val else "—")
-            row.cell(obs.title or "—")
-            row.cell(obs.observedProperty or "—")
-            row.cell(
-                str(obs.hasResult.hasValue)
-                if obs.hasResult and obs.hasResult.hasValue else "—"
-            )
-            row.cell(
-                obs.hasResult.unit if obs.hasResult and obs.hasResult.unit else "—"
-            )
-            row.cell(obs.details or "—")
+            row.cell(act.hasStartDatetime.strftime("%d/%m/%Y") if act.hasStartDatetime else "—")
+            row.cell("Lactating" if act.hasMilkYield else "Activity")
+            row.cell(act.title or "—")
+            row.cell(act.details or "—")
+            row.cell(act.responsibleAgent or "—")
+            row.cell(_format_lactating_metrics(act))
 
 
 def create_pdf_from_animals(
     animals: List[Animal],
     token: dict[str, str],
-    observations_by_animal: dict[str, List[CropObservation]] = None,
+    animal_activities_by_animal: dict[str, List[AnimalActivity]] = None,
 ):
     """
     Create PDF report from animal records
     """
-    observations_by_animal = observations_by_animal or {}
+    animal_activities_by_animal = animal_activities_by_animal or {}
     pdf = EX()
     add_fonts(pdf)
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -224,8 +245,8 @@ def create_pdf_from_animals(
 
         pdf.ln(4)
         pdf.set_font("FreeSerif", "B", 12)
-        pdf.cell(0, 8, "Observations:", ln=True)
-        _render_observations_table(pdf, observations_by_animal.get(an.id, []))
+        pdf.cell(0, 8, "Animal Activities:", ln=True)
+        _render_animal_activities_table(pdf, animal_activities_by_animal.get(an.id, []))
 
     if len(animals) > 1:
         animals.sort(key=lambda x: x.dateCreated)
@@ -282,11 +303,11 @@ def create_pdf_from_animals(
 
         pdf.ln(6)
         pdf.set_font("FreeSerif", "B", 14)
-        pdf.cell(0, 10, "Observations", ln=True)
+        pdf.cell(0, 10, "Animal Activities", ln=True)
         for animal in animals:
             pdf.set_font("FreeSerif", "B", 11)
             pdf.cell(0, 8, f"{animal.name or animal.id}:", ln=True)
-            _render_observations_table(pdf, observations_by_animal.get(animal.id, []))
+            _render_animal_activities_table(pdf, animal_activities_by_animal.get(animal.id, []))
             pdf.ln(3)
 
     return pdf
@@ -338,25 +359,25 @@ def process_animal_data(
     else:
         animals = []
 
-    observations_by_animal: dict[str, list] = {}
+    animal_activities_by_animal: dict[str, list] = {}
     if animals and settings.REPORTING_USING_GATEKEEPER:
-        obs_params = {"format": "json"}
-        decode_dates_filters(obs_params, from_date, to_date)
+        activity_params = {"format": "json"}
+        decode_dates_filters(activity_params, from_date, to_date)
         for an in animals:
             raw_animal_id = (
                 farm_animal_id if farm_animal_id else an.id.split(":")[-1] if an.id else None
             )
-            raw_observations = _fetch_animal_observations(raw_animal_id, token, obs_params)
+            raw_activities = _fetch_animal_activities(raw_animal_id, token, activity_params)
             try:
-                observations_by_animal[an.id] = [
-                    CropObservation.model_validate(item) for item in raw_observations
+                animal_activities_by_animal[an.id] = [
+                    AnimalActivity.model_validate(item) for item in raw_activities
                 ]
             except Exception as e:
-                logger.error(f"Error parsing observations for animal {an.id}: {e}")
-                observations_by_animal[an.id] = []
+                logger.error(f"Error parsing animal activities for animal {an.id}: {e}")
+                animal_activities_by_animal[an.id] = []
 
     try:
-        anima_pdf = create_pdf_from_animals(animals, token, observations_by_animal)
+        anima_pdf = create_pdf_from_animals(animals, token, animal_activities_by_animal)
     except Exception:
         raise HTTPException(
             status_code=400, detail="PDF generation of animal report failed."
