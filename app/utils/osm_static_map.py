@@ -30,7 +30,13 @@ def _pick_zoom(
     for zoom in range(max_zoom, 0, -1):
         x1, y1 = _lonlat_to_pixel(min_lon, max_lat, zoom)
         x2, y2 = _lonlat_to_pixel(max_lon, min_lat, zoom)
-        if (x2 - x1) / TILE_SIZE <= max_tiles_per_side and (y2 - y1) / TILE_SIZE <= max_tiles_per_side:
+        # Count actual tile columns/rows the way fetch_osm_map_for_bbox does
+        # (floor-divided tile indices, inclusive range), not just the raw
+        # pixel span - a span just under N tiles can still straddle a tile
+        # boundary at both ends and require N+1 tiles once floor-divided.
+        tiles_wide = int(x2 // TILE_SIZE) - int(x1 // TILE_SIZE) + 1
+        tiles_high = int(y2 // TILE_SIZE) - int(y1 // TILE_SIZE) + 1
+        if tiles_wide <= max_tiles_per_side and tiles_high <= max_tiles_per_side:
             return zoom
     return 1
 
@@ -81,6 +87,10 @@ def fetch_osm_map_for_bbox(
     crop_top = int(round(top_left_y)) - tile_y_min * TILE_SIZE
     crop_right = int(round(bottom_right_x)) - tile_x_min * TILE_SIZE
     crop_bottom = int(round(bottom_right_y)) - tile_y_min * TILE_SIZE
+    if crop_right <= crop_left or crop_bottom <= crop_top:
+        raise OSMMapException(
+            f"Degenerate crop box for bbox ({min_lon}, {min_lat}, {max_lon}, {max_lat}) at zoom {zoom}"
+        )
     cropped = canvas.crop((crop_left, crop_top, crop_right, crop_bottom))
 
     origin_x = tile_x_min * TILE_SIZE + crop_left

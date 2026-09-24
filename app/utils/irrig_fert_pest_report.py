@@ -68,6 +68,9 @@ def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
     """
     if not parcel_data.geometry_wkt:
         return False
+
+    # Fetch + parse failures happen before anything is drawn, so the caller
+    # can cleanly fall back to the point-centered WMS image instead.
     try:
         rings = parse_wkt_rings(parcel_data.geometry_wkt)
         bbox = compute_padded_bbox(rings)
@@ -79,26 +82,38 @@ def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
     image_file = io.BytesIO(image_bytes)
     pdf.ln(2)
     x_start = (pdf.w - 100) / 2
-    y_start = pdf.get_y()
     pdf.set_x(x_start)
     info = pdf.image(image_file, type="png", w=100)
+    # pdf.image() may trigger fpdf2's own auto-page-break internally (when y
+    # isn't given explicitly and the image doesn't fit in the remaining
+    # space), which moves to a new page before drawing - so the image's
+    # actual top can't be read reliably until *after* placing it, by which
+    # point pdf.y has already been advanced by the rendered height.
+    y_start = pdf.get_y() - info.rendered_height
 
-    original_draw_color = pdf.draw_color
-    original_line_width = pdf.line_width
-    pdf.set_draw_color(255, 40, 40)
-    pdf.set_line_width(0.6)
-    for ring in rings:
-        points = []
-        for lon, lat in ring:
-            px, py = lonlat_to_pixel_in_crop(lon, lat, zoom, origin_x, origin_y)
-            points.append((
-                x_start + (px / px_w) * info.rendered_width,
-                y_start + (py / px_h) * info.rendered_height,
-            ))
-        for (x1, y1), (x2, y2) in zip(points, points[1:]):
-            pdf.line(x1, y1, x2, y2)
-    pdf.set_draw_color(original_draw_color)
-    pdf.set_line_width(original_line_width)
+    # The map image is already on the page at this point, so a failure here
+    # (e.g. a pathological ring) should not fall back to drawing a second,
+    # different image on top - just skip the boundary overlay and keep the
+    # map.
+    try:
+        original_draw_color = pdf.draw_color
+        original_line_width = pdf.line_width
+        pdf.set_draw_color(255, 40, 40)
+        pdf.set_line_width(0.6)
+        for ring in rings:
+            points = []
+            for lon, lat in ring:
+                px, py = lonlat_to_pixel_in_crop(lon, lat, zoom, origin_x, origin_y)
+                points.append((
+                    x_start + (px / px_w) * info.rendered_width,
+                    y_start + (py / px_h) * info.rendered_height,
+                ))
+            for (x1, y1), (x2, y2) in zip(points, points[1:]):
+                pdf.line(x1, y1, x2, y2)
+        pdf.set_draw_color(original_draw_color)
+        pdf.set_line_width(original_line_width)
+    except Exception as e:
+        logger.error(f"Error drawing parcel boundary overlay, map image kept without it: {e}")
     return True
 
 
