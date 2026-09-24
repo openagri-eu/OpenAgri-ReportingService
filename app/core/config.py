@@ -46,6 +46,11 @@ class Settings(BaseSettings):
         "pest_risk": "/PestRisk/",
     }
 
+    REPORTING_OSM_TILE_URL: str = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    # OSM tile usage policy requires a descriptive User-Agent identifying the
+    # application (https://operations.osmfoundation.org/policies/tiles/).
+    REPORTING_OSM_USER_AGENT: str = "OpenAgri-ReportingService/1.0 (+https://github.com/openagri-eu)"
+
     PDF_DIRECTORY: str = "user_reports/"
 
     ENABLE_STRESS_TEST_NOTIFICATIONS: bool = False

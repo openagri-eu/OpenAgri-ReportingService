@@ -4,11 +4,9 @@ import math
 import requests
 from PIL import Image
 
+from core import settings
+
 TILE_SIZE = 256
-OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-# OSM tile usage policy requires a descriptive User-Agent identifying the
-# application (https://operations.osmfoundation.org/policies/tiles/).
-USER_AGENT = "OpenAgri-ReportingService/1.0 (+https://github.com/openagri-eu)"
 
 
 class OSMMapException(Exception):
@@ -67,10 +65,10 @@ def fetch_osm_map_for_bbox(
 
     canvas = Image.new("RGB", ((tile_x_max - tile_x_min + 1) * TILE_SIZE, (tile_y_max - tile_y_min + 1) * TILE_SIZE))
 
-    headers = {"User-Agent": USER_AGENT}
+    headers = {"User-Agent": settings.REPORTING_OSM_USER_AGENT}
     for tx in range(tile_x_min, tile_x_max + 1):
         for ty in range(tile_y_min, tile_y_max + 1):
-            url = OSM_TILE_URL.format(z=zoom, x=tx, y=ty)
+            url = settings.REPORTING_OSM_TILE_URL.format(z=zoom, x=tx, y=ty)
             try:
                 resp = requests.get(url, headers=headers, timeout=10)
                 resp.raise_for_status()
