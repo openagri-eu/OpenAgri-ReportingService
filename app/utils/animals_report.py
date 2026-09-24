@@ -167,10 +167,16 @@ def _machinery_cell(machinery: List[dict], machine_names: dict) -> str:
 
 
 def _part_of_cell(ref: Optional[dict], title_by_id: dict) -> str:
+    # isPartOfActivity is a URNRelatedField declared with a fixed
+    # class_names=['FarmCalendarActivity'] (apis/serializers/farm_activities.py),
+    # so its "@id" always reads "...:FarmCalendarActivity:<uuid>" regardless of
+    # the target's real subtype - never the same string as that target's own
+    # "@id" (which embeds its real class name). Match on the raw uuid instead.
     ref_id = (ref or {}).get("@id") or ""
     if not ref_id:
         return "—"
-    return title_by_id.get(ref_id) or _urn_ref_cell(ref)
+    raw_id = ref_id.split(":")[-1]
+    return title_by_id.get(raw_id) or _urn_ref_cell(ref)
 
 
 def _render_activities_table(
@@ -264,7 +270,9 @@ def _render_milk_metrics_table(pdf: EX, activities: List[AnimalActivity]):
 def _render_animal_activities(pdf: EX, activities: List[AnimalActivity], machine_names: dict, parcel_identifiers: dict):
     lactating = [a for a in activities if a.is_lactating]
     regular = [a for a in activities if not a.is_lactating]
-    title_by_id = {a.id: a.title for a in activities if a.id and a.title}
+    title_by_id = {
+        a.id.split(":")[-1]: a.title for a in activities if a.id and a.title
+    }
 
     pdf.set_font("FreeSerif", "B", 11)
     pdf.cell(0, 8, "Activities", ln=True)
