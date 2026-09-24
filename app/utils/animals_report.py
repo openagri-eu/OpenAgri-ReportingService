@@ -60,10 +60,44 @@ def _urn_ref_cell(ref: Optional[dict]) -> str:
     return ref_id.split(":")[-1] if ref_id else "—"
 
 
-def _machinery_cell(machinery: List[dict]) -> str:
+def _fetch_machine_name(machine_id: str, token: dict[str, str]) -> Optional[str]:
+    """Look up an AgriculturalMachine's display name. Returns None on any failure."""
+    if not machine_id:
+        return None
+    result = make_get_request(
+        url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS["machines"]}{machine_id}/',
+        token=token,
+        params={"format": "json"},
+    )
+    return result.get("name") if isinstance(result, dict) else None
+
+
+def _collect_machine_names(animal_activities_by_animal: dict, token: dict[str, str]) -> dict[str, str]:
+    """Resolve every distinct machine id referenced across all fetched activities, once each."""
+    machine_names: dict[str, str] = {}
+    if not settings.REPORTING_USING_GATEKEEPER:
+        return machine_names
+    machine_ids = set()
+    for acts in animal_activities_by_animal.values():
+        for act in acts:
+            for m in act.usesAgriculturalMachinery:
+                m_id = (m.get("@id") or "").split(":")[-1]
+                if m_id:
+                    machine_ids.add(m_id)
+    for m_id in machine_ids:
+        name = _fetch_machine_name(m_id, token)
+        if name:
+            machine_names[m_id] = name
+    return machine_names
+
+
+def _machinery_cell(machinery: List[dict], machine_names: dict) -> str:
     if not machinery:
         return "—"
-    names = [_urn_ref_cell(m) for m in machinery]
+    names = []
+    for m in machinery:
+        m_id = (m.get("@id") or "").split(":")[-1]
+        names.append(machine_names.get(m_id) or m_id or "—")
     return ", ".join(names)
 
 
@@ -74,7 +108,7 @@ def _part_of_cell(ref: Optional[dict], title_by_id: dict) -> str:
     return title_by_id.get(ref_id) or _urn_ref_cell(ref)
 
 
-def _render_activities_table(pdf: EX, activities: List[AnimalActivity], title_by_id: dict):
+def _render_activities_table(pdf: EX, activities: List[AnimalActivity], title_by_id: dict, machine_names: dict):
     """Plain AnimalActivity entries (no milking data) - every field the user can fill in the Register Activity form."""
     if not activities:
         pdf.set_font("FreeSerif", "", 10)
@@ -105,7 +139,7 @@ def _render_activities_table(pdf: EX, activities: List[AnimalActivity], title_by
             row.cell(act.title or "—")
             row.cell(act.details or "—")
             row.cell(_urn_ref_cell(act.hasAgriParcel))
-            row.cell(_machinery_cell(act.usesAgriculturalMachinery))
+            row.cell(_machinery_cell(act.usesAgriculturalMachinery, machine_names))
             row.cell(act.responsibleAgent or "—")
             row.cell(_part_of_cell(act.isPartOfActivity, title_by_id))
 
@@ -154,14 +188,14 @@ def _render_milk_recording_table(pdf: EX, activities: List[AnimalActivity]):
             row.cell(act.responsibleAgent or "—")
 
 
-def _render_animal_activities(pdf: EX, activities: List[AnimalActivity]):
+def _render_animal_activities(pdf: EX, activities: List[AnimalActivity], machine_names: dict):
     lactating = [a for a in activities if a.hasMilkYield is not None]
     regular = [a for a in activities if a.hasMilkYield is None]
     title_by_id = {a.id: a.title for a in activities if a.id and a.title}
 
     pdf.set_font("FreeSerif", "B", 11)
     pdf.cell(0, 8, "Activities", ln=True)
-    _render_activities_table(pdf, regular, title_by_id)
+    _render_activities_table(pdf, regular, title_by_id, machine_names)
 
     pdf.ln(3)
     pdf.set_font("FreeSerif", "B", 11)
@@ -173,11 +207,13 @@ def create_pdf_from_animals(
     animals: List[Animal],
     token: dict[str, str],
     animal_activities_by_animal: dict[str, List[AnimalActivity]] = None,
+    machine_names: dict[str, str] = None,
 ):
     """
     Create PDF report from animal records
     """
     animal_activities_by_animal = animal_activities_by_animal or {}
+    machine_names = machine_names or {}
     pdf = EX()
     add_fonts(pdf)
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -312,7 +348,7 @@ def create_pdf_from_animals(
         pdf.ln(4)
         pdf.set_font("FreeSerif", "B", 12)
         pdf.cell(0, 8, "Animal Activities:", ln=True)
-        _render_animal_activities(pdf, animal_activities_by_animal.get(an.id, []))
+        _render_animal_activities(pdf, animal_activities_by_animal.get(an.id, []), machine_names)
 
     if len(animals) > 1:
         animals.sort(key=lambda x: x.dateCreated)
@@ -373,7 +409,7 @@ def create_pdf_from_animals(
         for animal in animals:
             pdf.set_font("FreeSerif", "B", 11)
             pdf.cell(0, 8, f"{animal.name or animal.id}:", ln=True)
-            _render_animal_activities(pdf, animal_activities_by_animal.get(animal.id, []))
+            _render_animal_activities(pdf, animal_activities_by_animal.get(animal.id, []), machine_names)
             pdf.ln(3)
 
     return pdf
@@ -442,8 +478,10 @@ def process_animal_data(
                 logger.error(f"Error parsing animal activities for animal {an.id}: {e}")
                 animal_activities_by_animal[an.id] = []
 
+    machine_names = _collect_machine_names(animal_activities_by_animal, token)
+
     try:
-        anima_pdf = create_pdf_from_animals(animals, token, animal_activities_by_animal)
+        anima_pdf = create_pdf_from_animals(animals, token, animal_activities_by_animal, machine_names)
     except Exception:
         raise HTTPException(
             status_code=400, detail="PDF generation of animal report failed."
