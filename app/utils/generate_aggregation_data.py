@@ -42,8 +42,15 @@ def pesticides_aggregation(
     return pesticide_sums
 
 
+# The dashboard's applied-amount unit picker for Irrigation Operations
+# offers exactly these two values - a rate per hectare, or an already-
+# total volume. There is no other option to handle.
+VOLUME_PER_HECTARE_UNIT = "m3/hectare"
+
+
 def prepare_df_for_calculations(
     irrigation_reports: List[IrrigationOperation],
+    parcel_area_m2: float,
 ) -> pd.DataFrame:
     data_for_df = []
     for irrig in irrigation_reports:
@@ -53,60 +60,39 @@ def prepare_df_for_calculations(
                 "Dose": irrig.hasAppliedAmount.numericValue
                 if irrig.hasAppliedAmount
                 else 0,
+                "Unit": irrig.hasAppliedAmount.unit if irrig.hasAppliedAmount else "",
             }
         )
     df = pd.DataFrame(data_for_df)
+
+    area_ha = parcel_area_m2 / 10_000.0
+    is_per_hectare = df["Unit"] == VOLUME_PER_HECTARE_UNIT
+
+    # Each operation's own unit decides its row - an irrigation history can
+    # mix "m3" and "m3/hectare" entries, so this can't be sampled once.
+    per_hectare_from_total = df["Dose"] / area_ha if area_ha > 0 else 0
+    df["Per Hectare"] = df["Dose"].where(is_per_hectare, per_hectare_from_total)
+    df["Total Volume"] = (df["Dose"] * area_ha).where(is_per_hectare, df["Dose"])
+
     return df
-
-
-def generate_total_volume_graph(df: pd.DataFrame, parcel_area: int) -> io.BytesIO:
-    df["Started Date"] = pd.to_datetime(df["Started Date"], format="%d/%m/%Y")
-    df["Total Volume"] = df["Dose"] * parcel_area
-    df = df.sort_values(by="Started Date")
-    plt.figure(figsize=(14, 7))
-    plt.plot(df["Started Date"], df["Total Volume"], marker="o", color="#8B8000")
-
-    for i, txt in enumerate(df["Total Volume"]):
-        plt.annotate(
-            txt,
-            (df["Started Date"].iloc[i], df["Total Volume"].iloc[i]),
-            textcoords="offset points",
-            xytext=(0, 5),
-            ha="center",
-        )
-
-    plt.title("Total Volume of applied water per irrigation activity", fontsize=16)
-    plt.ylabel("Total Volume (m3)", fontsize=12)
-    plt.xlabel("Date", fontsize=12)
-    plt.grid(True, linestyle="--", alpha=0.6)
-    plt.xticks(rotation=45)
-
-    ax = plt.gca()
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%Y"))
-
-    plt.tight_layout()
-    image_mem = io.BytesIO()
-    plt.savefig(image_mem, format="png")
-    plt.close()
-    return image_mem
 
 
 def generate_amount_per_hectare(df: pd.DataFrame) -> io.BytesIO:
     df["Started Date"] = pd.to_datetime(df["Started Date"], format="%d/%m/%Y")
     plt.figure(figsize=(14, 7))
-    plt.plot(df["Started Date"], df["Dose"], marker="o", color="grey")
+    plt.plot(df["Started Date"], df["Per Hectare"], marker="o", color="grey")
 
-    for i, txt in enumerate(df["Dose"]):
+    for i, txt in enumerate(df["Per Hectare"]):
         plt.annotate(
-            txt,
-            (df["Started Date"].iloc[i], df["Dose"].iloc[i]),
+            f"{txt:.2f}",
+            (df["Started Date"].iloc[i], df["Per Hectare"].iloc[i]),
             textcoords="offset points",
             xytext=(0, 5),
             ha="center",
         )
 
     plt.title("Applied amount of water per hectare", fontsize=16)
-    plt.ylabel("Dose (m3/Ha)", fontsize=12)
+    plt.ylabel(f"Dose ({VOLUME_PER_HECTARE_UNIT})", fontsize=12)
     plt.xlabel("Date", fontsize=12)
     plt.grid(True, linestyle="--", alpha=0.6)
     plt.xticks(rotation=45)
@@ -123,8 +109,8 @@ def generate_amount_per_hectare(df: pd.DataFrame) -> io.BytesIO:
 
 def generate_aggregation_table_data(df: pd.DataFrame) -> dict:
     return {
-        "Volume of applied water": [df["Dose"].sum(), df["Total Volume"].sum()],
-        "Average dose": [df["Dose"].mean(), df["Total Volume"].mean()],
-        "Maximum Dose": [df["Dose"].max(), df["Total Volume"].max()],
-        "Minimum Dose": [df["Dose"].min(), df["Total Volume"].min()],
+        "Volume of applied water": [df["Per Hectare"].sum(), df["Total Volume"].sum()],
+        "Average dose": [df["Per Hectare"].mean(), df["Total Volume"].mean()],
+        "Maximum Dose": [df["Per Hectare"].max(), df["Total Volume"].max()],
+        "Minimum Dose": [df["Per Hectare"].min(), df["Total Volume"].min()],
     }
