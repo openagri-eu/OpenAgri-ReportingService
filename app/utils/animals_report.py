@@ -32,15 +32,9 @@ def parse_animal_data(data: Union[List[dict], str]) -> Optional[List[Animal]]:
 def _fetch_animal_activities(animal_id: str, token: dict[str, str], params: dict) -> list:
     """
     Fetch AnimalActivity and AnimalLactatingActivity records for a FarmAnimal.
-    These are the FarmCalendar records logged against an animal (there is no
-    "Observation" resource linked to animals - Observations only relate to
-    parcels). Returns [] on any failure.
+    Each raw record is tagged with which endpoint it came from (is_lactating).
+    Returns [] on any failure.
 
-    Each raw record is tagged with which endpoint it came from (is_lactating),
-    since FarmCalendar's serialized "@type" is always "FarmCalendarActivity"
-    for both resources - it can't be used to tell them apart after the fact,
-    and a lactating record without e.g. milk yield recorded that day would
-    otherwise be misclassified by checking field presence.
     """
     if not animal_id:
         return []
