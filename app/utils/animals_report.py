@@ -67,7 +67,14 @@ def _machinery_cell(machinery: List[dict]) -> str:
     return ", ".join(names)
 
 
-def _render_activities_table(pdf: EX, activities: List[AnimalActivity]):
+def _part_of_cell(ref: Optional[dict], title_by_id: dict) -> str:
+    ref_id = (ref or {}).get("@id") or ""
+    if not ref_id:
+        return "—"
+    return title_by_id.get(ref_id) or _urn_ref_cell(ref)
+
+
+def _render_activities_table(pdf: EX, activities: List[AnimalActivity], title_by_id: dict):
     """Plain AnimalActivity entries (no milking data) - every field the user can fill in the Register Activity form."""
     if not activities:
         pdf.set_font("FreeSerif", "", 10)
@@ -100,7 +107,7 @@ def _render_activities_table(pdf: EX, activities: List[AnimalActivity]):
             row.cell(_urn_ref_cell(act.hasAgriParcel))
             row.cell(_machinery_cell(act.usesAgriculturalMachinery))
             row.cell(act.responsibleAgent or "—")
-            row.cell(_urn_ref_cell(act.isPartOfActivity))
+            row.cell(_part_of_cell(act.isPartOfActivity, title_by_id))
 
 
 def _render_milk_recording_table(pdf: EX, activities: List[AnimalActivity]):
@@ -150,10 +157,11 @@ def _render_milk_recording_table(pdf: EX, activities: List[AnimalActivity]):
 def _render_animal_activities(pdf: EX, activities: List[AnimalActivity]):
     lactating = [a for a in activities if a.hasMilkYield is not None]
     regular = [a for a in activities if a.hasMilkYield is None]
+    title_by_id = {a.id: a.title for a in activities if a.id and a.title}
 
     pdf.set_font("FreeSerif", "B", 11)
     pdf.cell(0, 8, "Activities", ln=True)
-    _render_activities_table(pdf, regular)
+    _render_activities_table(pdf, regular, title_by_id)
 
     pdf.ln(3)
     pdf.set_font("FreeSerif", "B", 11)
