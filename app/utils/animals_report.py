@@ -150,11 +150,18 @@ def _part_of_cell(ref: Optional[dict], title_by_id: dict) -> str:
     return title_by_id.get(ref_id) or _urn_ref_cell(ref)
 
 
-def _render_activities_table(pdf: EX, activities: List[AnimalActivity], title_by_id: dict, machine_names: dict, parcel_identifiers: dict):
-    """Plain AnimalActivity entries (no milking data) - every field the user can fill in the Register Activity form."""
+def _render_activities_table(
+    pdf: EX,
+    activities: List[AnimalActivity],
+    title_by_id: dict,
+    machine_names: dict,
+    parcel_identifiers: dict,
+    empty_message: str = "No animal activities recorded for this animal.",
+):
+    """Every field the user can fill in the Register Activity form (shared by Activities and Milk Recording)."""
     if not activities:
         pdf.set_font("FreeSerif", "", 10)
-        pdf.cell(0, 8, "No animal activities recorded for this animal.", ln=True)
+        pdf.cell(0, 8, empty_message, ln=True)
         return
 
     try:
@@ -184,8 +191,8 @@ def _render_activities_table(pdf: EX, activities: List[AnimalActivity], title_by
             row.cell(_part_of_cell(act.isPartOfActivity, title_by_id))
 
 
-def _render_milk_recording_table(pdf: EX, activities: List[AnimalActivity]):
-    """AnimalLactatingActivity entries, one column per metric."""
+def _render_milk_metrics_table(pdf: EX, activities: List[AnimalActivity]):
+    """AnimalLactatingActivity entries, one column per lactation metric (base fields shown separately)."""
     if not activities:
         pdf.set_font("FreeSerif", "", 10)
         pdf.cell(0, 8, "No milk recording data for this animal.", ln=True)
@@ -210,7 +217,6 @@ def _render_milk_recording_table(pdf: EX, activities: List[AnimalActivity]):
         row.cell("RCS")
         row.cell("Urea")
         row.cell("Dry Matter")
-        row.cell("Responsible Agent")
         pdf.set_font("FreeSerif", "", 8)
         for act in activities:
             row = table.row()
@@ -225,7 +231,6 @@ def _render_milk_recording_table(pdf: EX, activities: List[AnimalActivity]):
             row.cell(_hr_cell(act.hasRCS))
             row.cell(_hr_cell(act.hasUrea))
             row.cell(_hr_cell(act.hasDryMatter))
-            row.cell(act.responsibleAgent or "—")
 
 
 def _render_animal_activities(pdf: EX, activities: List[AnimalActivity], machine_names: dict, parcel_identifiers: dict):
@@ -240,7 +245,13 @@ def _render_animal_activities(pdf: EX, activities: List[AnimalActivity], machine
     pdf.ln(3)
     pdf.set_font("FreeSerif", "B", 11)
     pdf.cell(0, 8, "Milk Recording", ln=True)
-    _render_milk_recording_table(pdf, lactating)
+    _render_activities_table(
+        pdf, lactating, title_by_id, machine_names, parcel_identifiers,
+        empty_message="No milk recording data for this animal.",
+    )
+    if lactating:
+        pdf.ln(2)
+        _render_milk_metrics_table(pdf, lactating)
 
 
 def create_pdf_from_animals(
