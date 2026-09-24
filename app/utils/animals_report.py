@@ -35,23 +35,34 @@ def _fetch_animal_activities(animal_id: str, token: dict[str, str], params: dict
     Each raw record is tagged with which endpoint it came from (is_lactating).
     Returns [] on any failure.
 
+    AnimalLactatingActivity is a subclass of AnimalActivity (Django multi-table
+    inheritance), so every lactating record also comes back from the plain
+    /AnimalActivities/ endpoint (without its milk fields). Fetch lactating
+    second and let it overwrite by id, so the richer version wins instead of
+    the same activity appearing twice.
     """
     if not animal_id:
         return []
     activity_params = {**params, "animal": animal_id}
-    results = []
+    by_id: dict = {}
     for url_key, is_lactating in (
         ("animal_activities", False),
         ("animal_lactating_activities", True),
     ):
         url = f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS[url_key]}'
         result = make_get_request(url=url, token=token, params=activity_params)
-        if isinstance(result, list):
-            for item in result:
-                if isinstance(item, dict):
-                    item["is_lactating"] = is_lactating
-            results.extend(result)
-    return results
+        if not isinstance(result, list):
+            continue
+        for item in result:
+            if not isinstance(item, dict):
+                continue
+            item["is_lactating"] = is_lactating
+            item_id = item.get("@id")
+            if item_id:
+                by_id[item_id] = item
+            else:
+                by_id[id(item)] = item
+    return list(by_id.values())
 
 
 def _hr_cell(hr) -> str:
