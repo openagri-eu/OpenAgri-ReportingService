@@ -52,31 +52,21 @@ def parse_irrig_fert_operations(
         )
 
 
-def _place_centered_parcel_image(
-    pdf: EX, image_bytes: bytes, aspect: float | None = None,
-    max_width: float = 100, max_height: float = 140,
-):
+PARCEL_IMAGE_WIDTH_MM = 100
+PARCEL_IMAGE_ASPECT_RATIO = 4 / 3
+
+
+def _place_centered_parcel_image(pdf: EX, image_bytes: bytes, aspect: float):
     """
-    Place a parcel image centered on the page, up to max_width wide.
-
-    aspect (pixel_width / pixel_height), when known, caps the render to
-    max_height too - a long, narrow parcel produces a bbox aspect ratio far
-    from the WMS satellite fallback's fixed near-square crop, and rendering
-    it at a fixed 100mm width with no height cap could overflow the page.
-    When aspect is unbounded that tall, width is reduced instead so the
-    image still fits, rather than letting fpdf2 auto-scale height freely.
-
-    Returns (info, x_start).
+    Place a parcel image centered on the page at a fixed width; height
+    follows from aspect (pixel_width / pixel_height).
     """
     pdf.ln(2)
-    w, h = max_width, None
-    if aspect and max_width / aspect > max_height:
-        h = max_height
-        w = max_height * aspect
+    w = PARCEL_IMAGE_WIDTH_MM
+    h = PARCEL_IMAGE_WIDTH_MM / aspect
     x_start = (pdf.w - w) / 2
     pdf.set_x(x_start)
-    image_file = io.BytesIO(image_bytes)
-    info = pdf.image(image_file, type="png", w=w, h=h) if h else pdf.image(image_file, type="png", w=w)
+    info = pdf.image(io.BytesIO(image_bytes), type="png", w=w, h=h)
     return info, x_start
 
 
@@ -101,7 +91,7 @@ def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
     # can cleanly fall back to the point-centered WMS image instead.
     try:
         rings = parse_wkt_rings(parcel_data.geometry_wkt)
-        bbox = compute_padded_bbox(rings)
+        bbox = compute_padded_bbox(rings, target_aspect_ratio=PARCEL_IMAGE_ASPECT_RATIO)
         image_bytes, zoom, origin_x, origin_y, px_w, px_h = fetch_osm_map_for_bbox(*bbox)
     except (ParcelGeometryException, OSMMapException) as e:
         logger.info(f"Parcel geometry image unavailable, falling back: {e}")
@@ -221,7 +211,7 @@ def create_pdf_from_operations(
             if parcel_data.long != 0 and parcel_data.lat != 0:
                 try:
                     image_bytes = fetch_wms_image(parcel_data.lat, parcel_data.long)
-                    _place_centered_parcel_image(pdf, image_bytes)
+                    _place_centered_parcel_image(pdf, image_bytes, aspect=1600 / 1200)
                 except SatelliteImageException:
                     logger.info("Satellite image issue happened, continue without image.")
         parcel_defined = True

@@ -37,20 +37,17 @@ def parse_wkt_rings(wkt_str: str) -> List[List[Tuple[float, float]]]:
 def compute_padded_bbox(
     rings: List[List[Tuple[float, float]]],
     padding_ratio: float = 0.15,
-    max_aspect_ratio: float = 2.5,
+    target_aspect_ratio: float = 4 / 3,
 ) -> Tuple[float, float, float, float]:
     """
     Returns (min_lon, min_lat, max_lon, max_lat) padded by padding_ratio on
     each side.
 
-    A long, narrow parcel (e.g. an irrigated strip field) has a real-world
-    width:height ratio that can be extreme. Rather than rendering the map at
-    that same extreme ratio - which either overflows the page or squeezes
-    down to an unreadably thin sliver - the shorter side's padding is
-    widened so the fetched map never exceeds max_aspect_ratio:1 (or 1:that,
-    for a tall/narrow shape). This shows more surrounding context on the
-    short axis, the same way a map naturally "zooms out" a bit further to
-    keep an elongated feature legible, instead of cropping tightly to it.
+    The bbox is always widened (never shrunk) to force its real-world km
+    ratio to exactly target_aspect_ratio, landscape, regardless of the
+    parcel's own shape - a tall/narrow parcel just zooms out further on its
+    short axis. This keeps every fetched map at the same fixed ratio so
+    placing it in the PDF never stretches or distorts it.
     """
     lons = [pt[0] for ring in rings for pt in ring]
     lats = [pt[1] for ring in rings for pt in ring]
@@ -66,13 +63,10 @@ def compute_padded_bbox(
     lat_km = lat_span * KM_PER_DEGREE_LAT
     aspect = lon_km / lat_km
 
-    if aspect > max_aspect_ratio:
-        # Too wide relative to its height - widen the height (in degrees)
-        # until width:height == max_aspect_ratio.
-        lat_span = (lon_km / max_aspect_ratio) / KM_PER_DEGREE_LAT
-    elif aspect < 1 / max_aspect_ratio:
-        # Too tall relative to its width - widen the width instead.
-        lon_span = (lat_km / max_aspect_ratio) / km_per_degree_lon
+    if aspect > target_aspect_ratio:
+        lat_span = (lon_km / target_aspect_ratio) / KM_PER_DEGREE_LAT
+    elif aspect < target_aspect_ratio:
+        lon_span = (lat_km * target_aspect_ratio) / km_per_degree_lon
 
     center_lon = (min_lon + max_lon) / 2
     center_lat = (min_lat + max_lat) / 2
