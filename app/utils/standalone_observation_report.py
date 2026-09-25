@@ -1,5 +1,4 @@
 import datetime
-import io
 import json
 import logging
 import os
@@ -11,7 +10,7 @@ from fpdf.enums import VAlign
 from core import settings
 from schemas import CropObservation, ManualFarmInfo, ManualParcelInfo
 from utils import EX, add_fonts, notify_stress_test_callback
-from utils.satellite_image_get import SatelliteImageException, fetch_wms_image
+from utils.irrig_fert_pest_report import _render_parcel_point_image
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -72,15 +71,7 @@ def _render_farm_details(
         pdf.multi_cell(0, 8, value or "", ln=True, fill=True)
 
     if parcel.lat is not None and parcel.lng is not None:
-        try:
-            image_bytes = fetch_wms_image(parcel.lat, parcel.lng)
-            image_file = io.BytesIO(image_bytes)
-            pdf.ln(2)
-            x_start = (pdf.w - 100) / 2
-            pdf.set_x(x_start)
-            pdf.image(image_file, type="png", w=100)
-        except SatelliteImageException:
-            logger.info("Satellite image issue happened, continue without image.")
+        _render_parcel_point_image(pdf, parcel.lat, parcel.lng)
 
 
 def _render_observation_table(pdf: EX, observations: List[CropObservation]):

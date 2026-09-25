@@ -73,3 +73,20 @@ def compute_padded_bbox(
     half_lon = (lon_span * (1 + padding_ratio)) / 2
     half_lat = (lat_span * (1 + padding_ratio)) / 2
     return (center_lon - half_lon, center_lat - half_lat, center_lon + half_lon, center_lat + half_lat)
+
+
+def compute_point_bbox(
+    lat: float,
+    lon: float,
+    radius_m: float = 150.0,
+    target_aspect_ratio: float = 4 / 3,
+) -> Tuple[float, float, float, float]:
+    """
+    Returns a landscape bbox (min_lon, min_lat, max_lon, max_lat) of radius_m
+    (half-height, in meters) centered on (lat, lon) - used when only a point
+    location is known, with no parcel boundary to fit.
+    """
+    km_per_degree_lon = KM_PER_DEGREE_LAT * math.cos(math.radians(lat)) or 1e-9
+    half_lat_deg = (radius_m / 1000) / KM_PER_DEGREE_LAT
+    half_lon_deg = half_lat_deg * target_aspect_ratio * (KM_PER_DEGREE_LAT / km_per_degree_lon)
+    return (lon - half_lon_deg, lat - half_lat_deg, lon + half_lon_deg, lat + half_lat_deg)

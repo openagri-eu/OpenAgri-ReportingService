@@ -9,9 +9,8 @@ from fastapi import HTTPException
 
 from core import settings
 from schemas import IrrigationOperation, FertilizationOperation, CropProtectionOperation
-from utils.satellite_image_get import fetch_wms_image, SatelliteImageException
 from utils.osm_static_map import fetch_osm_map_for_bbox, lonlat_to_pixel_in_crop, OSMMapException
-from utils.parcel_geometry import parse_wkt_rings, compute_padded_bbox, ParcelGeometryException
+from utils.parcel_geometry import parse_wkt_rings, compute_padded_bbox, compute_point_bbox, ParcelGeometryException
 from utils import EX, add_fonts, decode_dates_filters, get_parcel_info, display_pdf_parcel_details, FarmInfo, notify_stress_test_callback
 from utils.farm_calendar_report import geolocator
 from utils.generate_aggregation_data import (
@@ -76,7 +75,7 @@ def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
     map) sized to the parcel's real geometry extent, with the parcel
     boundary drawn as a line overlay on top. Returns True on success, False
     if there is no usable geometry or the fetch/parse fails (caller should
-    fall back to the generic point-centered satellite image).
+    fall back to _render_parcel_point_image).
 
     OSM raster tiles are used instead of the WMS satellite layer for this
     close a zoom: EOX's Sentinel-2 imagery is ~10m/pixel, so a single parcel
@@ -88,7 +87,7 @@ def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
         return False
 
     # Fetch + parse failures happen before anything is drawn, so the caller
-    # can cleanly fall back to the point-centered WMS image instead.
+    # can cleanly fall back to the point-centered OSM image instead.
     try:
         rings = parse_wkt_rings(parcel_data.geometry_wkt)
         bbox = compute_padded_bbox(rings, target_aspect_ratio=PARCEL_IMAGE_ASPECT_RATIO)
@@ -131,6 +130,43 @@ def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
     finally:
         pdf.set_draw_color(original_draw_color)
         pdf.set_line_width(original_line_width)
+    return True
+
+
+PARCEL_POINT_MARKER_RADIUS_MM = 2.5
+
+
+def _render_parcel_point_image(pdf: EX, lat: float, lon: float) -> bool:
+    """
+    Render an OSM map centered on (lat, lon) with a pin marker, for when no
+    parcel boundary is available - only a single point location is known.
+    """
+    try:
+        bbox = compute_point_bbox(lat, lon, target_aspect_ratio=PARCEL_IMAGE_ASPECT_RATIO)
+        image_bytes, zoom, origin_x, origin_y, px_w, px_h = fetch_osm_map_for_bbox(*bbox)
+    except OSMMapException as e:
+        logger.info(f"Point map unavailable: {e}")
+        return False
+
+    info, x_start = _place_centered_parcel_image(pdf, image_bytes, aspect=px_w / px_h)
+    y_start = pdf.get_y() - info.rendered_height
+
+    px, py = lonlat_to_pixel_in_crop(lon, lat, zoom, origin_x, origin_y)
+    marker_x = x_start + (px / px_w) * info.rendered_width
+    marker_y = y_start + (py / px_h) * info.rendered_height
+
+    original_draw_color = pdf.draw_color
+    original_fill_color = pdf.fill_color
+    try:
+        pdf.set_draw_color(255, 40, 40)
+        pdf.set_fill_color(255, 40, 40)
+        r = PARCEL_POINT_MARKER_RADIUS_MM
+        pdf.ellipse(marker_x - r, marker_y - r, r * 2, r * 2, style="DF")
+    except Exception as e:
+        logger.error(f"Error drawing point marker, map image kept without it: {e}")
+    finally:
+        pdf.set_draw_color(original_draw_color)
+        pdf.set_fill_color(original_fill_color)
     return True
 
 
@@ -209,11 +245,7 @@ def create_pdf_from_operations(
         parcel_data = display_pdf_parcel_details(pdf, parcel_id, geolocator, token)
         if not _render_parcel_geometry_image(pdf, parcel_data):
             if parcel_data.long != 0 and parcel_data.lat != 0:
-                try:
-                    image_bytes = fetch_wms_image(parcel_data.lat, parcel_data.long)
-                    _place_centered_parcel_image(pdf, image_bytes, aspect=1600 / 1200)
-                except SatelliteImageException:
-                    logger.info("Satellite image issue happened, continue without image.")
+                _render_parcel_point_image(pdf, parcel_data.lat, parcel_data.long)
         parcel_defined = True
 
     if len(operations) == 1:

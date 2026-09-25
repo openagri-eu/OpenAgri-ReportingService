@@ -18,8 +18,7 @@ from utils import (
 )
 from utils.generate_aggregation_data import get_pest_from_obj
 from utils.json_handler import make_get_request
-from utils.satellite_image_get import fetch_wms_image, SatelliteImageException
-from utils.irrig_fert_pest_report import _render_parcel_geometry_image, _place_centered_parcel_image
+from utils.irrig_fert_pest_report import _render_parcel_geometry_image, _render_parcel_point_image
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -208,11 +207,7 @@ def create_field_notebook_pdf(
 
     if parcel_data and not _render_parcel_geometry_image(pdf, parcel_data):
         if parcel_data.lat and parcel_data.long:
-            try:
-                image_bytes = fetch_wms_image(parcel_data.lat, parcel_data.long)
-                _place_centered_parcel_image(pdf, image_bytes, aspect=1600 / 1200)
-            except SatelliteImageException:
-                logger.info("Satellite image unavailable, continuing without it.")
+            _render_parcel_point_image(pdf, parcel_data.lat, parcel_data.long)
 
     pdf.add_page()
     _section_header(pdf, "2", "Forecasting Models \u2013 Last 15 Days")
