@@ -18,7 +18,7 @@ from utils import (
 )
 from utils.generate_aggregation_data import get_pest_from_obj
 from utils.json_handler import make_get_request
-from utils.irrig_fert_pest_report import _render_parcel_geometry_image, _render_parcel_point_image
+from utils.parcel_image import render_parcel_geometry_image, render_parcel_point_image
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -205,9 +205,9 @@ def create_field_notebook_pdf(
 
     _render_crops_section(pdf, crops)
 
-    if parcel_data and not _render_parcel_geometry_image(pdf, parcel_data):
+    if parcel_data and not render_parcel_geometry_image(pdf, parcel_data):
         if parcel_data.lat and parcel_data.long:
-            _render_parcel_point_image(pdf, parcel_data.lat, parcel_data.long)
+            render_parcel_point_image(pdf, parcel_data.lat, parcel_data.long)
 
     pdf.add_page()
     _section_header(pdf, "2", "Forecasting Models \u2013 Last 15 Days")

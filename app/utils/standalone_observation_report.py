@@ -10,7 +10,7 @@ from fpdf.enums import VAlign
 from core import settings
 from schemas import CropObservation, ManualFarmInfo, ManualParcelInfo
 from utils import EX, add_fonts, notify_stress_test_callback
-from utils.irrig_fert_pest_report import _render_parcel_point_image
+from utils.parcel_image import render_parcel_point_image
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -71,7 +71,7 @@ def _render_farm_details(
         pdf.multi_cell(0, 8, value or "", ln=True, fill=True)
 
     if parcel.lat is not None and parcel.lng is not None:
-        _render_parcel_point_image(pdf, parcel.lat, parcel.lng)
+        render_parcel_point_image(pdf, parcel.lat, parcel.lng)
 
 
 def _render_observation_table(pdf: EX, observations: List[CropObservation]):
