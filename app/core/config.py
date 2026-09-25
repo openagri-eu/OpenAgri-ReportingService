@@ -36,6 +36,8 @@ class Settings(BaseSettings):
         "crops": "/FarmCrops/",
         "parcel": "/FarmParcels/",
         "animals": "/FarmAnimals/",
+        "animal_activities": "/AnimalActivities/",
+        "animal_lactating_activities": "/AnimalLactatingActivities/",
         "materials": "/AddRawMaterialOperations/",
         "machines": "/AgriculturalMachines/",
         "farm": "/Farm/"

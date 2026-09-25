@@ -29,13 +29,274 @@ def parse_animal_data(data: Union[List[dict], str]) -> Optional[List[Animal]]:
         return None
 
 
+def _fetch_animal_activities(animal_id: str, token: dict[str, str], params: dict) -> list:
+    """
+    Fetch AnimalActivity and AnimalLactatingActivity records for a FarmAnimal.
+    Each raw record is tagged with which endpoint it came from (is_lactating).
+    Returns [] on any failure.
+
+    AnimalLactatingActivity is a subclass of AnimalActivity (Django multi-table
+    inheritance, sharing the same primary key as its parent row), so every
+    lactating record also comes back from the plain /AnimalActivities/
+    endpoint (without its milk fields). Its "@id" there is built from the
+    instance's class name at serialization time though, so the two
+    representations of the same row get DIFFERENT "@id" strings
+    ("...:AnimalActivity:<uuid>" vs "...:AnimalLactatingActivity:<uuid>") even
+    though the trailing <uuid> (the actual pk) is identical - dedupe on that
+    raw id, not the full "@id" string. Fetch lactating second and let it
+    overwrite, so the richer version wins instead of the same activity
+    appearing twice.
+    """
+    if not animal_id:
+        return []
+    activity_params = {**params, "animal": animal_id}
+    by_id: dict = {}
+    for url_key, is_lactating in (
+        ("animal_activities", False),
+        ("animal_lactating_activities", True),
+    ):
+        url = f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS[url_key]}'
+        result = make_get_request(url=url, token=token, params=activity_params)
+        if not isinstance(result, list):
+            continue
+        for item in result:
+            if not isinstance(item, dict):
+                continue
+            item["is_lactating"] = is_lactating
+            item_id = (item.get("@id") or "").split(":")[-1]
+            if item_id:
+                by_id[item_id] = item
+            else:
+                by_id[id(item)] = item
+    return list(by_id.values())
+
+
+def _hr_cell(hr) -> str:
+    if not hr or hr.hasValue in (None, ""):
+        return "—"
+    unit = f" {hr.unit}" if hr.unit else ""
+    return f"{hr.hasValue}{unit}"
+
+
+def _urn_ref_cell(ref: Optional[dict]) -> str:
+    ref_id = (ref or {}).get("@id") or ""
+    return ref_id.split(":")[-1] if ref_id else "—"
+
+
+def _fetch_machine_name(machine_id: str, token: dict[str, str]) -> Optional[str]:
+    """Look up an AgriculturalMachine's display name. Returns None on any failure."""
+    if not machine_id:
+        return None
+    result = make_get_request(
+        url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS["machines"]}{machine_id}/',
+        token=token,
+        params={"format": "json"},
+    )
+    return result.get("name") if isinstance(result, dict) else None
+
+
+def _collect_machine_names(animal_activities_by_animal: dict, token: dict[str, str]) -> dict[str, str]:
+    """Resolve every distinct machine id referenced across all fetched activities, once each."""
+    machine_names: dict[str, str] = {}
+    if not settings.REPORTING_USING_GATEKEEPER:
+        return machine_names
+    machine_ids = set()
+    for acts in animal_activities_by_animal.values():
+        for act in acts:
+            for m in act.usesAgriculturalMachinery:
+                m_id = (m.get("@id") or "").split(":")[-1]
+                if m_id:
+                    machine_ids.add(m_id)
+    for m_id in machine_ids:
+        name = _fetch_machine_name(m_id, token)
+        if name:
+            machine_names[m_id] = name
+    return machine_names
+
+
+def _collect_parcel_identifiers(animal_activities_by_animal: dict, token: dict[str, str]) -> dict[str, str]:
+    """Resolve every distinct parcel id referenced across all fetched activities, once each."""
+    parcel_identifiers: dict[str, str] = {}
+    if not settings.REPORTING_USING_GATEKEEPER:
+        return parcel_identifiers
+    parcel_ids = set()
+    for acts in animal_activities_by_animal.values():
+        for act in acts:
+            p_id = ((act.hasAgriParcel or {}).get("@id") or "").split(":")[-1]
+            if p_id:
+                parcel_ids.add(p_id)
+    for p_id in parcel_ids:
+        try:
+            _, _, identifier = get_parcel_info(p_id, token, geolocator, identifier_flag=True)
+        except Exception as e:
+            logger.error(f"Error fetching parcel info for {p_id}: {e}")
+            identifier = None
+        if identifier:
+            parcel_identifiers[p_id] = identifier
+    return parcel_identifiers
+
+
+def _date_range_cell(start, end) -> str:
+    if not start:
+        return "—"
+    start_str = start.strftime("%d/%m/%Y")
+    if not end:
+        return start_str
+    end_str = end.strftime("%d/%m/%Y")
+    if start_str == end_str:
+        return f"{start_str} ({start.strftime('%H:%M')}-{end.strftime('%H:%M')})"
+    return f"{start_str} - {end_str}"
+
+
+def _parcel_cell(ref: Optional[dict], parcel_identifiers: dict) -> str:
+    ref_id = (ref or {}).get("@id") or ""
+    if not ref_id:
+        return "—"
+    p_id = ref_id.split(":")[-1]
+    return parcel_identifiers.get(p_id) or p_id or "—"
+
+
+def _machinery_cell(machinery: List[dict], machine_names: dict) -> str:
+    if not machinery:
+        return "—"
+    names = []
+    for m in machinery:
+        m_id = (m.get("@id") or "").split(":")[-1]
+        names.append(machine_names.get(m_id) or m_id or "—")
+    return ", ".join(names)
+
+
+def _part_of_cell(ref: Optional[dict], title_by_id: dict) -> str:
+    # isPartOfActivity is a URNRelatedField declared with a fixed
+    # class_names=['FarmCalendarActivity'] (apis/serializers/farm_activities.py),
+    # so its "@id" always reads "...:FarmCalendarActivity:<uuid>" regardless of
+    # the target's real subtype - never the same string as that target's own
+    # "@id" (which embeds its real class name). Match on the raw uuid instead.
+    ref_id = (ref or {}).get("@id") or ""
+    if not ref_id:
+        return "—"
+    raw_id = ref_id.split(":")[-1]
+    return title_by_id.get(raw_id) or _urn_ref_cell(ref)
+
+
+def _render_activities_table(
+    pdf: EX,
+    activities: List[AnimalActivity],
+    title_by_id: dict,
+    machine_names: dict,
+    parcel_identifiers: dict,
+    empty_message: str = "No animal activities recorded for this animal.",
+):
+    """Every field the user can fill in the Register Activity form (shared by Activities and Milk Recording)."""
+    if not activities:
+        pdf.set_font("FreeSerif", "", 10)
+        pdf.cell(0, 8, empty_message, ln=True)
+        return
+
+    try:
+        activities = sorted(activities, key=lambda a: a.hasStartDatetime or datetime.min)
+    except Exception:
+        pass
+
+    pdf.set_font("FreeSerif", "B", 8)
+    with pdf.table(text_align="CENTER", padding=0.5) as table:
+        row = table.row()
+        row.cell("Date")
+        row.cell("Title")
+        row.cell("Details")
+        row.cell("Parcel")
+        row.cell("Machinery")
+        row.cell("Responsible Agent")
+        row.cell("Part Of")
+        pdf.set_font("FreeSerif", "", 8)
+        for act in activities:
+            row = table.row()
+            row.cell(_date_range_cell(act.hasStartDatetime, act.hasEndDatetime))
+            row.cell(act.title or "—")
+            row.cell(act.details or "—")
+            row.cell(_parcel_cell(act.hasAgriParcel, parcel_identifiers))
+            row.cell(_machinery_cell(act.usesAgriculturalMachinery, machine_names))
+            row.cell(act.responsibleAgent or "—")
+            row.cell(_part_of_cell(act.isPartOfActivity, title_by_id))
+
+
+def _render_milk_metrics_table(pdf: EX, activities: List[AnimalActivity]):
+    """AnimalLactatingActivity entries, one column per lactation metric (base fields shown separately)."""
+    if not activities:
+        pdf.set_font("FreeSerif", "", 10)
+        pdf.cell(0, 8, "No milk recording data for this animal.", ln=True)
+        return
+
+    try:
+        activities = sorted(activities, key=lambda a: a.hasStartDatetime or datetime.min)
+    except Exception:
+        pass
+
+    pdf.set_font("FreeSerif", "B", 8)
+    with pdf.table(
+        text_align="CENTER", padding=0.5,
+        col_widths=(1.6, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 1.5),
+    ) as table:
+        row = table.row()
+        row.cell("Date")
+        row.cell("Days in Milk")
+        row.cell("Lactation #")
+        row.cell("Control")
+        row.cell("Milk Yield")
+        row.cell("Total Yield")
+        row.cell("Fat")
+        row.cell("Protein")
+        row.cell("RCS")
+        row.cell("Urea")
+        row.cell("Dry Matter")
+        row.cell("Responsible Agent")
+        pdf.set_font("FreeSerif", "", 8)
+        for act in activities:
+            row = table.row()
+            row.cell(_date_range_cell(act.hasStartDatetime, act.hasEndDatetime))
+            row.cell(act.hasDaysInMilk or "—")
+            row.cell(act.hasLactationNumber or "—")
+            row.cell(act.hasControl or "—")
+            row.cell(_hr_cell(act.hasMilkYield))
+            row.cell(_hr_cell(act.hasTotalMilkYield))
+            row.cell(_hr_cell(act.hasFat))
+            row.cell(_hr_cell(act.hasProtein))
+            row.cell(_hr_cell(act.hasRCS))
+            row.cell(_hr_cell(act.hasUrea))
+            row.cell(_hr_cell(act.hasDryMatter))
+            row.cell(act.responsibleAgent or "—")
+
+
+def _render_animal_activities(pdf: EX, activities: List[AnimalActivity], machine_names: dict, parcel_identifiers: dict):
+    lactating = [a for a in activities if a.is_lactating]
+    regular = [a for a in activities if not a.is_lactating]
+    title_by_id = {
+        a.id.split(":")[-1]: a.title for a in activities if a.id and a.title
+    }
+
+    pdf.set_font("FreeSerif", "B", 11)
+    pdf.cell(0, 8, "Activities", ln=True)
+    _render_activities_table(pdf, regular, title_by_id, machine_names, parcel_identifiers)
+
+    pdf.ln(3)
+    pdf.set_font("FreeSerif", "B", 11)
+    pdf.cell(0, 8, "Milk Recording", ln=True)
+    _render_milk_metrics_table(pdf, lactating)
+
+
 def create_pdf_from_animals(
     animals: List[Animal],
     token: dict[str, str],
+    animal_activities_by_animal: dict[str, List[AnimalActivity]] = None,
+    machine_names: dict[str, str] = None,
+    parcel_identifiers: dict[str, str] = None,
 ):
     """
     Create PDF report from animal records
     """
+    animal_activities_by_animal = animal_activities_by_animal or {}
+    machine_names = machine_names or {}
+    parcel_identifiers = parcel_identifiers or {}
     pdf = EX()
     add_fonts(pdf)
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -167,6 +428,11 @@ def create_pdf_from_animals(
             fill=True,
         )
 
+        pdf.ln(4)
+        pdf.set_font("FreeSerif", "B", 12)
+        pdf.cell(0, 8, "Animal Activities:", ln=True)
+        _render_animal_activities(pdf, animal_activities_by_animal.get(an.id, []), machine_names, parcel_identifiers)
+
     if len(animals) > 1:
         animals.sort(key=lambda x: x.dateCreated)
         pdf.set_fill_color(0, 255, 255)
@@ -220,6 +486,15 @@ def create_pdf_from_animals(
                 )
                 pdf.ln(10)
 
+        pdf.ln(6)
+        pdf.set_font("FreeSerif", "B", 14)
+        pdf.cell(0, 10, "Animal Activities", ln=True)
+        for animal in animals:
+            pdf.set_font("FreeSerif", "B", 11)
+            pdf.cell(0, 8, f"{animal.name or animal.id}:", ln=True)
+            _render_animal_activities(pdf, animal_activities_by_animal.get(animal.id, []), machine_names, parcel_identifiers)
+            pdf.ln(3)
+
     return pdf
 
 
@@ -268,8 +543,31 @@ def process_animal_data(
         animals = parse_animal_data(json_data)
     else:
         animals = []
+
+    animal_activities_by_animal: dict[str, list] = {}
+    if animals and settings.REPORTING_USING_GATEKEEPER:
+        activity_params = {"format": "json"}
+        decode_dates_filters(activity_params, from_date, to_date)
+        for an in animals:
+            raw_animal_id = (
+                farm_animal_id if farm_animal_id else an.id.split(":")[-1] if an.id else None
+            )
+            raw_activities = _fetch_animal_activities(raw_animal_id, token, activity_params)
+            parsed_activities = []
+            for item in raw_activities:
+                try:
+                    parsed_activities.append(AnimalActivity.model_validate(item))
+                except Exception as e:
+                    logger.error(f"Error parsing an animal activity for animal {an.id}: {e}")
+            animal_activities_by_animal[an.id] = parsed_activities
+
+    machine_names = _collect_machine_names(animal_activities_by_animal, token)
+    parcel_identifiers = _collect_parcel_identifiers(animal_activities_by_animal, token)
+
     try:
-        anima_pdf = create_pdf_from_animals(animals, token)
+        anima_pdf = create_pdf_from_animals(
+            animals, token, animal_activities_by_animal, machine_names, parcel_identifiers
+        )
     except Exception:
         raise HTTPException(
             status_code=400, detail="PDF generation of animal report failed."
