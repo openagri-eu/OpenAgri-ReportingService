@@ -1,4 +1,3 @@
-import io
 import json
 import logging
 import os
@@ -9,7 +8,7 @@ from fastapi import HTTPException
 
 from core import settings
 from schemas import IrrigationOperation, FertilizationOperation, CropProtectionOperation
-from utils.satellite_image_get import fetch_wms_image, SatelliteImageException
+from utils.parcel_image import render_parcel_geometry_image, render_parcel_point_image
 from utils import EX, add_fonts, decode_dates_filters, get_parcel_info, display_pdf_parcel_details, FarmInfo, notify_stress_test_callback
 from utils.farm_calendar_report import geolocator
 from utils.generate_aggregation_data import (
@@ -123,16 +122,9 @@ def create_pdf_from_operations(
 
     if parcel_id:
         parcel_data = display_pdf_parcel_details(pdf, parcel_id, geolocator, token)
-        if parcel_data.long != 0 and parcel_data.lat != 0:
-            try:
-                image_bytes = fetch_wms_image(parcel_data.lat, parcel_data.long)
-                image_file = io.BytesIO(image_bytes)
-                pdf.ln(2)
-                x_start = (pdf.w - 100) / 2
-                pdf.set_x(x_start)
-                pdf.image(image_file, type="png", w=100)
-            except SatelliteImageException:
-                logger.info("Satellite image issue happened, continue without image.")
+        if not render_parcel_geometry_image(pdf, parcel_data):
+            if parcel_data.long != 0 and parcel_data.lat != 0:
+                render_parcel_point_image(pdf, parcel_data.lat, parcel_data.long)
         parcel_defined = True
 
     if len(operations) == 1:

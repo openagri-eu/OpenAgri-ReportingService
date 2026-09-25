@@ -110,6 +110,7 @@ class ParcelInfo(BaseModel):
     area: float
     lat: float | None = 0
     long: float | None = 0
+    geometry_wkt: str | None = None
 
 
 def get_parcel_info(
@@ -144,6 +145,7 @@ def get_parcel_info(
 
     location = farm_parcel_info.get("location")
     parcel_info.area = farm_parcel_info.get("area", 0.0)
+    parcel_info.geometry_wkt = (farm_parcel_info.get("hasGeometry") or {}).get("asWKT") or None
     farm_id = farm_parcel_info.get("farm").get("@id", None)
 
     if farm_id:
