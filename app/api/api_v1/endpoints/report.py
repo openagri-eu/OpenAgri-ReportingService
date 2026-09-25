@@ -396,11 +396,12 @@ async def generate_field_notebook(
     Combines all agronomic activities in chronological order, aligned with
     European Field Notebook (farm diary) requirements:
 
-    1. Farm & parcel information (name, VAT, contact, address, parcel map)
-    2. Pest treatment activities (all CropProtectionOperations, chronological)
-    3. Fertilization activities (all FertilizationOperations, chronological)
-    4. Irrigation activities (all IrrigationOperations, chronological)
-    5. Observations (all recorded observations + quality certification section)
+    1. Farm & parcel information (name, VAT, contact, address, satellite map)
+    2. Forecasting models – last 15 days pest risk summary (TODO when implemented on FC && PDM)
+    3. Pest treatment activities (all CropProtectionOperations, chronological)
+    4. Fertilization activities (all FertilizationOperations, chronological)
+    5. Irrigation activities (all IrrigationOperations, chronological)
+    6. Crop data & observations (all recorded observations + quality certification section)
 
     Requires Gatekeeper mode. Data is fetched from Farm Calendar via the proxy.
     Returns a UUID that can be polled via GET /{report_id}/.

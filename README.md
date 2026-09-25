@@ -383,7 +383,7 @@ python3 scripts/report_client.py --type standalone-observation \
 /api/v1/openagri-report/field-notebook/
 ```
 
-Generates a unified Field Notebook PDF aligned with European Field Notebook (farm diary) requirements. The report combines farm/parcel information and all agronomic activities (pest treatment, fertilization, irrigation) plus observations, in chronological order.
+Generates a unified Field Notebook PDF aligned with European Field Notebook (farm diary) requirements. The report combines farm/parcel information, a forecasting pest-risk summary, and all agronomic activities (pest treatment, fertilization, irrigation) plus crop data and observations, in chronological order.
 
 **Requires Gatekeeper mode.** Data is fetched from Farm Calendar via the proxy; requests without Gatekeeper enabled return HTTP 400.
 
@@ -415,7 +415,7 @@ Generates a unified Field Notebook PDF aligned with European Field Notebook (far
 
 ### include_observations
 - **Type**: `bool`
-- **Description**: Include the Observations section. Defaults to `true`.
+- **Description**: Include the Crop Data & Observations section. Defaults to `true`.
 
 ### certification
 - **Type**: `QualityCertification` (optional request body)

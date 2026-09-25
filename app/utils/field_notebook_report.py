@@ -44,6 +44,54 @@ def _base_params(parcel_id: str, from_date, to_date) -> dict:
     return params
 
 
+def _fetch_crops_for_parcel(parcel_id: str, token: str) -> list:
+    """Fetch all crops linked via hasAgriCrop on the parcel. Returns [] on any failure."""
+    if not parcel_id:
+        return []
+    parcel_data = make_get_request(
+        url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS["parcel"]}{parcel_id}/',
+        token=token,
+        params={"format": "json"},
+    )
+    if not parcel_data or not isinstance(parcel_data, dict):
+        return []
+    has_agri_crop = parcel_data.get("hasAgriCrop") or []
+    if not has_agri_crop:
+        return []
+    crops = []
+    for crop_ref in has_agri_crop:
+        crop_id_full = (crop_ref or {}).get("@id", "")
+        if not crop_id_full:
+            continue
+        crop_uuid = crop_id_full.split(":")[-1]
+        if not crop_uuid:
+            continue
+        crop_data = make_get_request(
+            url=f'{settings.REPORTING_FARMCALENDAR_BASE_URL}{settings.REPORTING_FARMCALENDAR_URLS["crops"]}{crop_uuid}/',
+            token=token,
+            params={"format": "json"},
+        )
+        if crop_data and isinstance(crop_data, dict):
+            crops.append(crop_data)
+    return crops
+
+
+def _fetch_forecasting(token: str, parcel_id: str) -> list:
+    """Fetch pest-risk forecasting data. Returns [] when not configured or unavailable."""
+    if not settings.REPORTING_FORECASTING_BASE_URL:
+        return []
+    params = {"format": "json"}
+    if parcel_id:
+        params["parcel"] = parcel_id
+    pest_risk_path = settings.REPORTING_FORECASTING_URLS.get("pest_risk", "/PestRisk/")
+    result = make_get_request(
+        url=f"{settings.REPORTING_FORECASTING_BASE_URL}{pest_risk_path}",
+        token=token,
+        params=params,
+    )
+    return result if isinstance(result, list) else []
+
+
 def _section_header(pdf: EX, number: str, title: str) -> None:
     pdf.ln(4)
     y = pdf.get_y()
@@ -67,6 +115,35 @@ def _no_data(pdf: EX, msg: str) -> None:
     pdf.cell(0, 8, msg, ln=True)
 
 
+def _render_crops_section(pdf: EX, crops: list) -> None:
+    pdf.ln(3)
+    pdf.set_font("FreeSerif", "B", 11)
+    pdf.cell(0, 8, "Crops", ln=True)
+    pdf.ln(1)
+    if not crops:
+        _no_data(pdf, "No crops associated with this parcel.")
+        return
+    pdf.set_font("FreeSerif", "B", 10)
+    with pdf.table(text_align="CENTER") as table:
+        row = table.row()
+        row.cell("Name")
+        row.cell("Description")
+        row.cell("Status")
+        row.cell("Growth Stage")
+        row.cell("Species")
+        row.cell("Variety")
+        pdf.set_font("FreeSerif", "", 9)
+        for crop in crops:
+            crop_species = crop.get("cropSpecies") or {}
+            row = table.row()
+            row.cell(crop.get("name") or "\u2014")
+            row.cell(crop.get("description") or "\u2014")
+            row.cell(str(crop["status"]) if crop.get("status") is not None else "\u2014")
+            row.cell(crop.get("growth_stage") or "\u2014")
+            row.cell(crop_species.get("name") or "\u2014")
+            row.cell(crop_species.get("variety") or "\u2014")
+
+
 def create_field_notebook_pdf(
     parcel_id: str,
     token: str,
@@ -76,6 +153,8 @@ def create_field_notebook_pdf(
     fertilization_ops: list = None,
     pesticide_ops: list = None,
     observations: list = None,
+    forecasting_data: list = None,
+    crops: list = None,
     cert_type: str = None,
     cert_number: str = None,
     cert_issuing_body: str = None,
@@ -91,6 +170,8 @@ def create_field_notebook_pdf(
     fertilization_ops = fertilization_ops or []
     pesticide_ops = pesticide_ops or []
     observations = observations or []
+    forecasting_data = forecasting_data or []
+    crops = crops or []
 
     pdf = EX()
     add_fonts(pdf)
@@ -122,11 +203,34 @@ def create_field_notebook_pdf(
     else:
         _no_data(pdf, "Parcel details require Gatekeeper mode to be enabled.")
 
+    _render_crops_section(pdf, crops)
+
     if parcel_data and not _render_parcel_geometry_image(pdf, parcel_data):
         if parcel_data.lat and parcel_data.long:
             _render_parcel_point_image(pdf, parcel_data.lat, parcel_data.long)
 
-    _sec = [2]
+    pdf.add_page()
+    _section_header(pdf, "2", "Forecasting Models \u2013 Last 15 Days")
+
+    if not forecasting_data:
+        _no_data(pdf, "No forecasting data available (service not configured or no data returned).")
+    else:
+        pdf.set_font("FreeSerif", "B", 10)
+        with pdf.table(text_align="CENTER") as table:
+            row = table.row()
+            row.cell("Pest / Model")
+            row.cell("Risk Level")
+            row.cell("Date")
+            row.cell("Notes")
+            pdf.set_font("FreeSerif", "", 9)
+            for entry in forecasting_data:
+                row = table.row()
+                row.cell(str(entry.get("pest") or entry.get("name") or "\u2014"))
+                row.cell(str(entry.get("riskLevel") or entry.get("risk_level") or "\u2014"))
+                row.cell(str(entry.get("date") or "\u2014"))
+                row.cell(str(entry.get("notes") or entry.get("details") or "\u2014"))
+
+    _sec = [3]
 
     def _next_sec() -> str:
         n = str(_sec[0])
@@ -271,7 +375,7 @@ def create_field_notebook_pdf(
 
     if include_observations:
         pdf.add_page()
-        _section_header(pdf, _next_sec(), "Observations")
+        _section_header(pdf, _next_sec(), "Crop Data & Observations")
 
         if not observations:
             _no_data(pdf, "No observations recorded for this period.")
@@ -365,11 +469,15 @@ def process_field_notebook_data(
 
     params = _base_params(parcel_id, from_date, to_date)
 
+    crops = _fetch_crops_for_parcel(parcel_id, token)
+
     raw_irrigations = _fetch_list("irrigations", token, params) if include_irrigation else []
     raw_fertilizations = _fetch_list("fertilization", token, params) if include_fertilization else []
     raw_pesticides = _fetch_list("pesticides", token, params) if include_pesticides else []
 
     raw_observations = _fetch_list("observations", token, params) if include_observations else []
+
+    forecasting_data = _fetch_forecasting(token, parcel_id)
 
     try:
         irrigation_ops = [IrrigationOperation.model_validate(item) for item in raw_irrigations]
@@ -405,6 +513,8 @@ def process_field_notebook_data(
             fertilization_ops=fertilization_ops,
             pesticide_ops=pesticide_ops,
             observations=observations,
+            forecasting_data=forecasting_data,
+            crops=crops,
             cert_type=cert_type,
             cert_number=cert_number,
             cert_issuing_body=cert_issuing_body,
