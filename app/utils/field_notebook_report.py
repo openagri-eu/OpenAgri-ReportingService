@@ -203,11 +203,11 @@ def create_field_notebook_pdf(
     else:
         _no_data(pdf, "Parcel details require Gatekeeper mode to be enabled.")
 
-    _render_crops_section(pdf, crops)
-
     if parcel_data and not render_parcel_geometry_image(pdf, parcel_data):
         if parcel_data.lat and parcel_data.long:
             render_parcel_point_image(pdf, parcel_data.lat, parcel_data.long)
+
+    _render_crops_section(pdf, crops)
 
     pdf.add_page()
     _section_header(pdf, "2", "Forecasting Models \u2013 Last 15 Days")
