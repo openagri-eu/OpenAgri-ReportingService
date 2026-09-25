@@ -1,11 +1,14 @@
 import io
 import json
 import logging
+import math
 import os
 from datetime import datetime
 from typing import Optional, List
 
 from fastapi import HTTPException
+from fpdf.enums import PathPaintRule
+from fpdf.drawing import DeviceRGB
 
 from core import settings
 from schemas import IrrigationOperation, FertilizationOperation, CropProtectionOperation
@@ -136,6 +139,41 @@ def _render_parcel_geometry_image(pdf: EX, parcel_data) -> bool:
 PARCEL_POINT_MARKER_RADIUS_MM = 2.5
 
 
+def _draw_pin_marker(pdf: EX, tip_x: float, tip_y: float, radius_mm: float = PARCEL_POINT_MARKER_RADIUS_MM) -> None:
+    """
+    Draw a classic map pin (teardrop) with its tip - the exact location -
+    at (tip_x, tip_y) and its round head above it, built from tangent lines
+    and a circular arc rather than an icon file, so it scales cleanly.
+    """
+    distance_to_tip = 2.4 * radius_mm
+    tangent_angle = math.acos(1 / 2.4)
+    head_x, head_y = tip_x, tip_y - distance_to_tip
+    angle_right = math.radians(90) - tangent_angle
+    angle_left = math.radians(90) + tangent_angle
+    tangent_right = (
+        head_x + radius_mm * math.cos(angle_right),
+        head_y + radius_mm * math.sin(angle_right),
+    )
+    tangent_left = (
+        head_x + radius_mm * math.cos(angle_left),
+        head_y + radius_mm * math.sin(angle_left),
+    )
+
+    with pdf.new_path(paint_rule=PathPaintRule.STROKE_FILL_NONZERO) as path:
+        path.style.fill_color = DeviceRGB(0.86, 0.13, 0.13)
+        path.style.stroke_color = DeviceRGB(0.55, 0.05, 0.05)
+        path.style.stroke_width = 0.25
+        path.move_to(tip_x, tip_y)
+        path.line_to(*tangent_left)
+        path.arc_to(rx=radius_mm, ry=radius_mm, rotation=0, large_arc=True, positive_sweep=True, x=tangent_right[0], y=tangent_right[1])
+        path.line_to(tip_x, tip_y)
+        path.close()
+
+    with pdf.new_path(paint_rule=PathPaintRule.FILL_NONZERO) as path:
+        path.style.fill_color = DeviceRGB(1, 1, 1)
+        path.circle(head_x, head_y, radius_mm * 0.38)
+
+
 def _render_parcel_point_image(pdf: EX, lat: float, lon: float) -> bool:
     """
     Render an OSM map centered on (lat, lon) with a pin marker, for when no
@@ -155,18 +193,10 @@ def _render_parcel_point_image(pdf: EX, lat: float, lon: float) -> bool:
     marker_x = x_start + (px / px_w) * info.rendered_width
     marker_y = y_start + (py / px_h) * info.rendered_height
 
-    original_draw_color = pdf.draw_color
-    original_fill_color = pdf.fill_color
     try:
-        pdf.set_draw_color(255, 40, 40)
-        pdf.set_fill_color(255, 40, 40)
-        r = PARCEL_POINT_MARKER_RADIUS_MM
-        pdf.ellipse(marker_x - r, marker_y - r, r * 2, r * 2, style="DF")
+        _draw_pin_marker(pdf, marker_x, marker_y)
     except Exception as e:
         logger.error(f"Error drawing point marker, map image kept without it: {e}")
-    finally:
-        pdf.set_draw_color(original_draw_color)
-        pdf.set_fill_color(original_fill_color)
     return True
 
 
