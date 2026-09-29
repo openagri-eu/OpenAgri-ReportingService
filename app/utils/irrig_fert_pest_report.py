@@ -146,66 +146,70 @@ def create_pdf_from_operations(
             op.hasStartDatetime.strftime("%d/%m/%Y") if op.hasStartDatetime else ""
         )
         end_time = op.hasEndDatetime.strftime("%d/%m/%Y") if op.hasEndDatetime else ""
+        if parcel_defined:
+            pdf.ln(2)
+        pdf.set_x(pdf.l_margin)
         pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(40, 8, "Star-End :")
+        pdf.cell(40, 8, "Start-End :")
         pdf.set_font("FreeSerif", "", 10)
         pdf.multi_cell(0, 8, f"{start_time}-{end_time}", ln=True, fill=True)
 
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(40, 8, "Parcel Location:")
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, address, ln=True, fill=True)
+        if not parcel_defined:
+            pdf.set_font("FreeSerif", "B", 10)
+            pdf.cell(40, 8, "Parcel Location:")
+            pdf.set_font("FreeSerif", "", 10)
+            pdf.multi_cell(0, 8, address, ln=True, fill=True)
 
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(40, 8, "Parcel Identifier:")
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, identifier, ln=True, fill=True)
+            pdf.set_font("FreeSerif", "B", 10)
+            pdf.cell(40, 8, "Parcel Identifier:")
+            pdf.set_font("FreeSerif", "", 10)
+            pdf.multi_cell(0, 8, identifier, ln=True, fill=True)
 
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Farm Location:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        farm_local = f"Name: {farm.name} | Municipality: {farm.municipality}"
-        pdf.multi_cell(0, 8, farm_local, ln=True, fill=True)
+            pdf.set_font("FreeSerif", "B", 10)
+            pdf.cell(
+                40,
+                8,
+                "Farm Location:",
+            )
+            pdf.set_font("FreeSerif", "", 10)
+            farm_local = f"Name: {farm.name} | Municipality: {farm.municipality}"
+            pdf.multi_cell(0, 8, farm_local, ln=True, fill=True)
 
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Administrator:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, farm.administrator, ln=True, fill=True)
+            pdf.set_font("FreeSerif", "B", 10)
+            pdf.cell(
+                40,
+                8,
+                "Administrator:",
+            )
+            pdf.set_font("FreeSerif", "", 10)
+            pdf.multi_cell(0, 8, farm.administrator, ln=True, fill=True)
 
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Contact Person:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, farm.contactPerson, ln=True, fill=True)
+            pdf.set_font("FreeSerif", "B", 10)
+            pdf.cell(
+                40,
+                8,
+                "Contact Person:",
+            )
+            pdf.set_font("FreeSerif", "", 10)
+            pdf.multi_cell(0, 8, farm.contactPerson, ln=True, fill=True)
 
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Farm vat:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, farm.vatID, ln=True, fill=True)
+            pdf.set_font("FreeSerif", "B", 10)
+            pdf.cell(
+                40,
+                8,
+                "Farm vat:",
+            )
+            pdf.set_font("FreeSerif", "", 10)
+            pdf.multi_cell(0, 8, farm.vatID, ln=True, fill=True)
 
-        pdf.set_font("FreeSerif", "B", 10)
-        pdf.cell(
-            40,
-            8,
-            "Farm Description:",
-        )
-        pdf.set_font("FreeSerif", "", 10)
-        pdf.multi_cell(0, 8, farm.description, ln=True, fill=True)
+            pdf.set_font("FreeSerif", "B", 10)
+            pdf.cell(
+                40,
+                8,
+                "Farm Description:",
+            )
+            pdf.set_font("FreeSerif", "", 10)
+            pdf.multi_cell(0, 8, farm.description, ln=True, fill=True)
 
         pdf.set_font("FreeSerif", "B", 10)
         pdf.cell(
