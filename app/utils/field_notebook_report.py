@@ -76,22 +76,6 @@ def _fetch_crops_for_parcel(parcel_id: str, token: str) -> list:
     return crops
 
 
-def _fetch_forecasting(token: str, parcel_id: str) -> list:
-    """Fetch pest-risk forecasting data. Returns [] when not configured or unavailable."""
-    if not settings.REPORTING_FORECASTING_BASE_URL:
-        return []
-    params = {"format": "json"}
-    if parcel_id:
-        params["parcel"] = parcel_id
-    pest_risk_path = settings.REPORTING_FORECASTING_URLS.get("pest_risk", "/PestRisk/")
-    result = make_get_request(
-        url=f"{settings.REPORTING_FORECASTING_BASE_URL}{pest_risk_path}",
-        token=token,
-        params=params,
-    )
-    return result if isinstance(result, list) else []
-
-
 def _section_header(pdf: EX, number: str, title: str) -> None:
     pdf.ln(4)
     y = pdf.get_y()
@@ -153,7 +137,6 @@ def create_field_notebook_pdf(
     fertilization_ops: list = None,
     pesticide_ops: list = None,
     observations: list = None,
-    forecasting_data: list = None,
     crops: list = None,
     cert_type: str = None,
     cert_number: str = None,
@@ -170,7 +153,6 @@ def create_field_notebook_pdf(
     fertilization_ops = fertilization_ops or []
     pesticide_ops = pesticide_ops or []
     observations = observations or []
-    forecasting_data = forecasting_data or []
     crops = crops or []
 
     pdf = EX()
@@ -209,28 +191,7 @@ def create_field_notebook_pdf(
 
     _render_crops_section(pdf, crops)
 
-    pdf.add_page()
-    _section_header(pdf, "2", "Forecasting Models \u2013 Last 15 Days")
-
-    if not forecasting_data:
-        _no_data(pdf, "No forecasting data available (service not configured or no data returned).")
-    else:
-        pdf.set_font("FreeSerif", "B", 10)
-        with pdf.table(text_align="CENTER") as table:
-            row = table.row()
-            row.cell("Pest / Model")
-            row.cell("Risk Level")
-            row.cell("Date")
-            row.cell("Notes")
-            pdf.set_font("FreeSerif", "", 9)
-            for entry in forecasting_data:
-                row = table.row()
-                row.cell(str(entry.get("pest") or entry.get("name") or "\u2014"))
-                row.cell(str(entry.get("riskLevel") or entry.get("risk_level") or "\u2014"))
-                row.cell(str(entry.get("date") or "\u2014"))
-                row.cell(str(entry.get("notes") or entry.get("details") or "\u2014"))
-
-    _sec = [3]
+    _sec = [2]
 
     def _next_sec() -> str:
         n = str(_sec[0])
@@ -477,8 +438,6 @@ def process_field_notebook_data(
 
     raw_observations = _fetch_list("observations", token, params) if include_observations else []
 
-    forecasting_data = _fetch_forecasting(token, parcel_id)
-
     try:
         irrigation_ops = [IrrigationOperation.model_validate(item) for item in raw_irrigations]
     except Exception as e:
@@ -513,7 +472,6 @@ def process_field_notebook_data(
             fertilization_ops=fertilization_ops,
             pesticide_ops=pesticide_ops,
             observations=observations,
-            forecasting_data=forecasting_data,
             crops=crops,
             cert_type=cert_type,
             cert_number=cert_number,
